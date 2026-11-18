@@ -200,8 +200,39 @@ struct Transport {
         if site.connection != .sftp { a += ["--tls-max", "1.2"] }
         if site.allowInvalidCertificates { a += ["--insecure"] }
         let r = try await Shell.run("/usr/bin/curl", a + args)
-        guard r.ok else { throw explainCurl(r.status, stderr: r.stderr, op: op) }
+        guard r.ok else {
+            let e = explainCurl(r.status, stderr: r.stderr, op: op)
+            // Accesso negato da Aruba: stessa risposta per password sbagliata e filtro IP. Il tuo IP aiuta a capire quale.
+            if r.status == 67, r.stderr.localizedCaseInsensitiveContains("filtro accessi") {
+                throw await Self.arubaLoginError(base: e)
+            }
+            throw e
+        }
         return r
+    }
+
+    /// IP pubblico di questo Mac (quello che vede l'hosting), o nil se non si riesce a saperlo.
+    static func publicIP() async -> String? {
+        var req = URLRequest(url: URL(string: "https://api.ipify.org")!)
+        req.timeoutInterval = 6
+        guard let (data, resp) = try? await URLSession.shared.data(for: req), (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        let ip = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        return ip.count <= 45 && !ip.isEmpty ? ip : nil
+    }
+
+    /// Aruba risponde «530 … verificare i dati di autenticazione … filtro accessi ftp» sia per la password sbagliata
+    /// sia per il filtro IP: non si possono distinguere dalla risposta, quindi si danno l'IP e i controlli in ordine.
+    static func arubaLoginError(base: MirrorpressError) async -> MirrorpressError {
+        let ip = await publicIP()
+        let ipText = ip.map { L("Il tuo IP pubblico in questo momento è %@.", $0) } ?? L("Non sono riuscito a leggere il tuo IP pubblico.")
+        let hint = [
+            L("Aruba dà la stessa risposta per password sbagliata e per filtro IP: controlla in quest'ordine."),
+            L("1. Filtro accessi FTP: nel pannello dell'hosting Aruba, sezione FTP, se il filtro è attivo aggiungi questo IP o disattivalo.") + " " + ipText,
+            L("2. Se il filtro non è attivo, la password non è quella giusta: reimpostala dal pannello (gestione utenti FTP) e aggiornala nel profilo."),
+            L("3. Dopo molti tentativi sbagliati Aruba può bloccare l'IP per un po': aspetta qualche minuto prima di riprovare."),
+        ].joined(separator: "\n")
+        return fail(L("Aruba ha rifiutato l'accesso FTP: filtro IP attivo oppure password sbagliata."), hint: hint,
+                    detail: [base.detail, ip.map { L("IP pubblico di questo Mac: %@", $0) }].compactMap { $0 }.joined(separator: "\n"))
     }
 
     /// Solo le righe utili del dialogo FTP: comandi inviati (password oscurata), risposte, errori TLS.

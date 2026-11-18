@@ -688,6 +688,14 @@ EN = {
 "vuoto = nessuna  ·  es. FortiClient": "empty = none  ·  e.g. FortiClient",
 "Prima di collegarti attiva la VPN %@: il server non risponde da fuori.": "Turn on the %@ VPN before connecting: the server doesn't answer from outside.",
 "Questo server richiede la VPN %@: controlla che sia attiva.": "This server needs the %@ VPN: check that it's on.",
+"Il tuo IP pubblico in questo momento è %@.": "Your public IP right now is %@.",
+"Non sono riuscito a leggere il tuo IP pubblico.": "Couldn't read your public IP.",
+"Aruba dà la stessa risposta per password sbagliata e per filtro IP: controlla in quest'ordine.": "Aruba gives the same answer for a wrong password and for the IP filter: check in this order.",
+"1. Filtro accessi FTP: nel pannello dell'hosting Aruba, sezione FTP, se il filtro è attivo aggiungi questo IP o disattivalo.": "1. FTP access filter: in the Aruba hosting panel, FTP section, if the filter is on add this IP or turn it off.",
+"2. Se il filtro non è attivo, la password non è quella giusta: reimpostala dal pannello (gestione utenti FTP) e aggiornala nel profilo.": "2. If the filter is off, the password is wrong: reset it from the panel (FTP user management) and update it in the profile.",
+"3. Dopo molti tentativi sbagliati Aruba può bloccare l'IP per un po': aspetta qualche minuto prima di riprovare.": "3. After many failed attempts Aruba may block the IP for a while: wait a few minutes before trying again.",
+"Aruba ha rifiutato l'accesso FTP: filtro IP attivo oppure password sbagliata.": "Aruba refused FTP access: IP filter on or wrong password.",
+"IP pubblico di questo Mac: %@": "Public IP of this Mac: %@",
 }
 
 # Testi che non sono chiavi (simboli SF, percorsi costruiti, verbatim).

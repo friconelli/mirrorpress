@@ -789,3 +789,11 @@
 "vuoto = nessuna  ·  es. FortiClient" = "vuoto = nessuna  ·  es. FortiClient";
 "Prima di collegarti attiva la VPN %@: il server non risponde da fuori." = "Prima di collegarti attiva la VPN %@: il server non risponde da fuori.";
 "Questo server richiede la VPN %@: controlla che sia attiva." = "Questo server richiede la VPN %@: controlla che sia attiva.";
+"Il tuo IP pubblico in questo momento è %@." = "Il tuo IP pubblico in questo momento è %@.";
+"Non sono riuscito a leggere il tuo IP pubblico." = "Non sono riuscito a leggere il tuo IP pubblico.";
+"Aruba dà la stessa risposta per password sbagliata e per filtro IP: controlla in quest'ordine." = "Aruba dà la stessa risposta per password sbagliata e per filtro IP: controlla in quest'ordine.";
+"1. Filtro accessi FTP: nel pannello dell'hosting Aruba, sezione FTP, se il filtro è attivo aggiungi questo IP o disattivalo." = "1. Filtro accessi FTP: nel pannello dell'hosting Aruba, sezione FTP, se il filtro è attivo aggiungi questo IP o disattivalo.";
+"2. Se il filtro non è attivo, la password non è quella giusta: reimpostala dal pannello (gestione utenti FTP) e aggiornala nel profilo." = "2. Se il filtro non è attivo, la password non è quella giusta: reimpostala dal pannello (gestione utenti FTP) e aggiornala nel profilo.";
+"3. Dopo molti tentativi sbagliati Aruba può bloccare l'IP per un po': aspetta qualche minuto prima di riprovare." = "3. Dopo molti tentativi sbagliati Aruba può bloccare l'IP per un po': aspetta qualche minuto prima di riprovare.";
+"Aruba ha rifiutato l'accesso FTP: filtro IP attivo oppure password sbagliata." = "Aruba ha rifiutato l'accesso FTP: filtro IP attivo oppure password sbagliata.";
+"IP pubblico di questo Mac: %@" = "IP pubblico di questo Mac: %@";
