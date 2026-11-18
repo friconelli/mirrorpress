@@ -77,6 +77,22 @@ enum LocalEnv {
     static let mampSocket = "/Applications/MAMP/tmp/mysql/mysql.sock"
 
     /// Il PHP più recente disponibile: MAMP prima, poi Homebrew.
+    /// PHP di MAMP con la stessa versione principale (es. 8.3) del server, o la più vicina: per controllare la sintassi.
+    static func mampPHP(matching version: String) -> (path: String, version: String)? {
+        let base = "/Applications/MAMP/bin/php"
+        guard let dirs = try? FileManager.default.contentsOfDirectory(atPath: base) else { return nil }
+        let wanted = version.split(separator: ".").prefix(2).compactMap { Int($0) }
+        guard wanted.count == 2 else { return nil }
+        let available: [(String, [Int])] = dirs.compactMap { d in
+            guard d.hasPrefix("php"), FileManager.default.isExecutableFile(atPath: "\(base)/\(d)/bin/php") else { return nil }
+            let v = d.dropFirst(3).split(separator: ".").compactMap { Int($0) }
+            return v.count >= 2 ? (d, v) : nil
+        }
+        func distance(_ v: [Int]) -> Int { abs((v[0] * 100 + v[1]) - (wanted[0] * 100 + wanted[1])) }
+        guard let best = available.min(by: { distance($0.1) < distance($1.1) }) else { return nil }
+        return ("\(base)/\(best.0)/bin/php", "\(best.1[0]).\(best.1[1])")
+    }
+
     static var phpBinary: String? {
         if let custom = UserDefaults.standard.string(forKey: "phpPath"), FileManager.default.isExecutableFile(atPath: custom) {
             return custom

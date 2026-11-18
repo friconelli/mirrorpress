@@ -434,6 +434,12 @@ struct SyncConfirmSheet: View {
                         ? L("%d file sono più recenti sul server: forse qualcuno li ha modificati lì. Se fai Push perdi quelle modifiche.", newerOnTarget.count)
                         : L("%d file sono più recenti sul Mac: se fai Pull perdi le modifiche locali.", newerOnTarget.count))
             }
+            let source: Side = toServer ? .local : .remote
+            let flagged = session.codeFindings.filter { $0.side == source && $0.severity == .error && set.contains($0.path) }
+            if !flagged.isEmpty {
+                warning(L("Codice con criticità gravi in %d file da copiare (%@): controllali nella scheda Controlli prima di procedere.",
+                          Set(flagged.map(\.path)).count, flagged.map(\.info.title).first ?? ""))
+            }
             if !protectedFiles.isEmpty {
                 warning(L("Contiene file da non sincronizzare: %@", protectedFiles.map(\.path).prefix(4).joined(separator: ", ")))
             }

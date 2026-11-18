@@ -39,6 +39,17 @@ La scheda principale. **Pull ↓** copia dal server al Mac, **Push ↑** dal Mac
 
 Tre passi: **direzione** (Pubblica sul server / Aggiorna il Mac) → **cosa portare**, per importanza: *essenziale* tema attivo (e genitore) e contenuti (posts, postmeta, termini, menu), *consigliato* impostazioni (options: personalizzazioni del tema, widget, menu), *facoltativo* file dei plugin (basta che le versioni siano compatibili: mostra quelle diverse), media, utenti, commenti, tabelle dei plugin → **riepilogo** con le righe che si perderebbero (da confermare) → esecuzione: prima i file, poi il database in un solo passaggio (un backup, uno scambio atomico), poi nuova analisi.
 
+## Controllo del codice
+
+Scheda Controlli → **Codice** → «Controlla il codice» (a parte dall'analisi: la prima volta calcola gli hash di migliaia di file). Sui due lati:
+
+- **Integrità**: file del core confrontati con i checksum ufficiali di wordpress.org per quella versione (modificati, mancanti, PHP estranei in wp-admin/wp-includes); sul server anche i plugin di wordpress.org confrontati con i loro checksum (premium e personalizzati saltati).
+- **Sicurezza** (regole nel ponte, `trv_code_rules`): eval di codice offuscato, eval/system con input della richiesta, preg_replace /e, funzioni scelte dalla richiesta, firme di web shell, base64 o esadecimale molto lunghi, PHP in uploads.
+- **Compatibilità**: funzioni eliminate in PHP 8 (se il server è PHP 8) e **sintassi del tema e dei mu-plugins controllata con il PHP di MAMP della stessa versione del server**.
+- **Pulizia** (solo codice proprio: temi, mu-plugins, root): var_dump/print_r/dd, display_errors, localhost/127.0.0.1//Applications/MAMP scritti nel codice.
+
+Le criticità gravi dei file da copiare compaiono anche nella conferma di Push/Pull.
+
 ## Log e diagnosi
 
 La scheda **Log** registra ogni passo. Ogni errore dice cosa è successo, cosa fare (💡) e ha i **dettagli tecnici** espandibili: operazione, connessione (utente@server:porta, cartella), dialogo FTP col server (password oscurata), indirizzo del ponte, codice HTTP, intestazioni dell'hosting (WAF, cache), inizio della risposta. «Copia log» copia tutto come testo. Prima di installare il ponte l'app controlla che la cartella remota contenga `wp-config.php` e, se non la trova, cerca WordPress nelle cartelle vicine e le suggerisce; dopo il caricamento verifica la dimensione del file (antivirus degli hosting che lo svuotano o lo tolgono). Il ponte, in caso di errore fatale PHP, risponde con un JSON che lo spiega invece di una pagina vuota.

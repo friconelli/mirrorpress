@@ -91,6 +91,7 @@ try {
         case 'info':         trv_json(trv_info($req)); break;
         case 'manifest':     trv_manifest($req); break;
         case 'hash':         trv_json(trv_hash($req)); break;
+        case 'code_scan':    trv_json(trv_code_scan($req)); break;
         case 'download':     trv_download($req); break;
         case 'upload':       trv_json(trv_upload($body, isset($req['session']) ? (string)$req['session'] : '')); break;
         case 'commit':       trv_json(trv_commit($req)); break;
@@ -507,6 +508,87 @@ function trv_hash($req) {
     }
     if ($dirty) trv_hash_cache_save($cache);
     return array('hashes' => (object)$out, 'done' => $done);
+}
+
+// ---------------------------------------------------------------- controllo del codice
+
+/**
+ * Regole per trovare criticità nel codice: [id, gravità, ambito, espressione regolare].
+ * Ambito: "all" = ogni file analizzato; "own" = solo codice proprio (temi, mu-plugins, file nella root).
+ */
+function trv_code_rules() {
+    return array(
+        // Codice malevolo e backdoor
+        array('eval_obfuscated', 'error', 'all', '~\b(eval|assert)\s*\(\s*(@?\s*)(base64_decode|gzinflate|gzuncompress|gzdecode|str_rot13|strrev|rawurldecode|hex2bin|convert_uudecode)\s*\(~i'),
+        array('eval_input', 'error', 'all', '~\b(eval|assert|create_function)\s*\([^;]{0,80}\$_(POST|GET|REQUEST|COOKIE|SERVER)~i'),
+        array('exec_input', 'error', 'all', '~\b(system|shell_exec|passthru|exec|popen|proc_open|pcntl_exec)\s*\([^;]{0,80}\$_(POST|GET|REQUEST|COOKIE)~i'),
+        array('preg_e', 'error', 'all', '~preg_replace\s*\(\s*([\'"])(.).*\2[a-zA-Z]*e[a-zA-Z]*\1\s*,~'),
+        array('var_function_input', 'error', 'all', '~\$\w+\s*=\s*\$_(POST|GET|REQUEST|COOKIE)\s*\[[^\]]+\]\s*;\s*@?\$\w+\s*\(~'),
+        array('shell_signature', 'error', 'all', '~(FilesMan|WSOsetcookie|c99shell|r57shell|b374k|IndoXploit|AnonymousFox|Leaf PHPMailer|wp_vcd|tmpcontentx)~'),
+        array('long_base64', 'warning', 'all', '~[A-Za-z0-9+/]{3000,}={0,2}~'),
+        array('hex_obfuscation', 'warning', 'all', '~(\\\\x[0-9a-fA-F]{2}){40,}~'),
+        // Funzioni eliminate in PHP 8 (solo codice proprio: i plugin di solito le controllano con function_exists)
+        array('php8_removed', 'error8', 'own', '~(?<![\w>:$])(create_function|money_format|ereg|eregi|ereg_replace|split|mysql_connect|mysql_query|mysql_fetch_array|mysql_fetch_assoc|mysql_real_escape_string|each)\s*\(~'),
+        // Residui di debug
+        array('debug_dump', 'warning', 'own', '~(?<![\w>:$])(var_dump\s*\(|print_r\s*\([^,()]*\)\s*;|var_export\s*\([^,()]*\)\s*;|dd\s*\()~'),
+        array('display_errors', 'warning', 'own', '~ini_set\s*\(\s*[\'"]display_errors[\'"]\s*,\s*[\'"]?(1|on|true)~i'),
+        // Indirizzi e percorsi dell'ambiente locale scritti nel codice
+        array('local_url', 'warning', 'own', '~(https?://(localhost|127\.0\.0\.1)[:/]|/Applications/MAMP/|/Users/[A-Za-z0-9._-]+/)~'),
+    );
+}
+
+/** Analizza i file indicati (percorsi relativi) con un limite di tempo; l'app chiede il resto con un'altra richiesta. */
+function trv_code_scan($req) {
+    $paths = isset($req['paths']) ? (array)$req['paths'] : array();
+    $php8 = !empty($req['php8']);
+    $rules = trv_code_rules();
+    $out = array();
+    $started = microtime(true);
+    $done = 0;
+    foreach ($paths as $rel) {
+        $done++;
+        $abs = trv_abs($rel);
+        if (!is_file($abs) || filesize($abs) > 2000000) continue;
+        $data = @file_get_contents($abs);
+        if ($data === false) continue;
+        $low = strtolower($rel);
+        $own = strpos($low, 'wp-content/themes/') === 0 || strpos($low, 'wp-content/mu-plugins/') === 0 || strpos($low, '/') === false;
+        $isJs = substr($low, -3) === '.js';
+        $minified = substr($low, -7) === '.min.js' || ($isJs && strlen($data) > 2000 && substr_count($data, "\n") < 5);
+        if (strpos($low, 'wp-content/uploads/') === 0 && preg_match('~\.(php\d?|phtml|phar)$~', $low)) {
+            $silent = strlen($data) < 200 && stripos($data, 'silence') !== false;
+            if (!$silent) $out[] = array('path' => $rel, 'line' => 1, 'rule' => 'php_in_uploads', 'severity' => 'error', 'snippet' => trv_snippet($data, 0));
+        }
+        foreach ($rules as $r) {
+            list($id, $sev, $scope, $re) = $r;
+            if ($scope === 'own' && !$own) continue;
+            if ($sev === 'error8') { if (!$php8 || $isJs) continue; $sev = 'error'; }
+            if ($isJs && in_array($id, array('debug_dump', 'display_errors', 'php8_removed', 'preg_e', 'var_function_input'), true)) continue;
+            if ($minified && in_array($id, array('long_base64', 'hex_obfuscation', 'local_url'), true)) continue;
+            if (!preg_match_all($re, $data, $m, PREG_OFFSET_CAPTURE)) continue;
+            $n = 0;
+            foreach ($m[0] as $hit) {
+                // Righe commentate: non contano per debug e indirizzi locali.
+                $lineStart = strrpos(substr($data, 0, $hit[1]), "\n");
+                $lineText = substr($data, $lineStart === false ? 0 : $lineStart + 1, 300);
+                $nl = strpos($lineText, "\n");
+                $lineText = ltrim($nl === false ? $lineText : substr($lineText, 0, $nl));
+                if (in_array($id, array('debug_dump', 'local_url', 'php8_removed'), true) && (strpos($lineText, '//') === 0 || strpos($lineText, '*') === 0 || strpos($lineText, '#') === 0)) continue;
+                if ($id === 'php8_removed' && preg_match('~function\s+&?\s*' . preg_quote(rtrim($hit[0], " \t("), '~') . '~i', $lineText)) continue;
+                $out[] = array('path' => $rel, 'line' => substr_count($data, "\n", 0, $hit[1]) + 1, 'rule' => $id, 'severity' => $sev, 'snippet' => trv_snippet($data, $hit[1]));
+                if (++$n >= 5) break;
+            }
+        }
+        if (microtime(true) - $started > 20) break;
+    }
+    return array('findings' => $out, 'done' => $done);
+}
+
+function trv_snippet($data, $offset) {
+    $s = substr($data, max(0, $offset - 20), 140);
+    $s = preg_replace('~\s+~', ' ', $s);
+    if (function_exists('mb_convert_encoding')) $s = mb_convert_encoding($s, 'UTF-8', 'UTF-8');
+    return trim($s);
 }
 
 /** Scarica file: per ciascuno "F dimensione mtime percorso\n" e poi i byte. Fine: "E\n". */

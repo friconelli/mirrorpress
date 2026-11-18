@@ -14,6 +14,8 @@ final class SiteSession: ObservableObject {
     @Published private(set) var tables: [TableDiff] = []
     @Published private(set) var issues: [Issue] = []
     @Published private(set) var analyzedAt: Date?
+    @Published var codeFindings: [CodeFinding] = []
+    @Published var codeCheckedAt: Date?
     @Published private(set) var backups: [JSONValue] = []
     @Published private(set) var bridgeInstalled = false
     /// In modalità manuale: il ponte da caricare a mano, in attesa di conferma.
@@ -41,7 +43,7 @@ final class SiteSession: ObservableObject {
         return u.hasSuffix("/") ? String(u.dropLast()) : u
     }
 
-    private lazy var local: LocalBridge = makeLocal()
+    lazy var local: LocalBridge = makeLocal()
 
     private func makeLocal() -> LocalBridge {
         LocalBridge(root: localRoot, workdir: AppPaths.workdir(for: site), db: dbParams(site.localDBOverride, password: Secret.localDB.get(site)))
@@ -69,12 +71,12 @@ final class SiteSession: ObservableObject {
 
     func cancel() { cancelRequested = true }
 
-    private func checkCancel() throws {
+    func checkCancel() throws {
         if cancelRequested { throw fail(L("Operazione annullata.")) }
     }
 
     /// Esegue un'operazione mostrando lo stato e registrando l'esito.
-    private func perform(_ title: String, _ body: () async throws -> Void) async {
+    func perform(_ title: String, _ body: () async throws -> Void) async {
         guard busy == nil else { return }
         busy = title
         progress = nil
@@ -92,7 +94,7 @@ final class SiteSession: ObservableObject {
         progress = nil
     }
 
-    private func status(_ text: String, _ p: Double? = nil) {
+    func status(_ text: String, _ p: Double? = nil) {
         busy = text
         progress = p
     }
@@ -100,7 +102,7 @@ final class SiteSession: ObservableObject {
     // MARK: - Ponte sul server
 
     /// Installa (o riusa) il ponte sul server e verifica che risponda.
-    private func ensureRemote() async throws -> RemoteBridge {
+    func ensureRemote() async throws -> RemoteBridge {
         if let remote, bridgeInstalled {
             if (try? await remote.call("ping", [:])) != nil { return remote }
             bridgeInstalled = false

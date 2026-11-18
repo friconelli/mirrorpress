@@ -57,7 +57,11 @@ struct SiteDetailView: View {
         .font(Theme.font(.body))
         .onAppear {
             if CommandLine.arguments.contains("--analyze"), session.analyzedAt == nil, session.busy == nil {
-                Task { await session.analyze() }
+                Task {
+                    await session.analyze()
+                    // Solo per prove: `--check-code` lancia anche il controllo del codice.
+                    if CommandLine.arguments.contains("--check-code") { await session.checkCode() }
+                }
             }
             if let i = CommandLine.arguments.firstIndex(of: "--tab"), i + 1 < CommandLine.arguments.count,
                let t = DetailTab(rawValue: CommandLine.arguments[i + 1]) { tab = t }
@@ -175,8 +179,8 @@ struct TabStrip: View {
         guard session.analyzedAt != nil || t == .log else { return nil }
         switch t {
         case .overview:
-            let n = session.issues.count
-            let worst = session.issues.contains { $0.severity == .error } ? Theme.danger : Theme.warn
+            let n = session.issues.count + session.codeFindings.filter { $0.severity == .error }.count
+            let worst = session.issues.contains { $0.severity == .error } || session.codeFindings.contains { $0.severity == .error } ? Theme.danger : Theme.warn
             return n > 0 ? (n, worst) : nil
         case .sync:
             let n = session.files.filter { $0.status != .same }.count + session.tables.filter { $0.status != .same }.count
@@ -300,8 +304,9 @@ struct OverviewView: View {
                     }
                 } else {
                     summary
-                    sideBySide
+                    CodeCheckSection(session: session)
                     issuesList
+                    sideBySide
                 }
             }
             .padding(20)
