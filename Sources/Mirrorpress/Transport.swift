@@ -67,6 +67,47 @@ struct Transport {
         }
     }
 
+    /// lftp (Homebrew) se installato: secondo tentativo quando curl carica file vuoti in FTPS.
+    static var lftpPath: String? {
+        ["/opt/homebrew/bin/lftp", "/usr/local/bin/lftp"].first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+
+    /// Carica con lftp (password via LFTP_PASSWORD, mai sulla riga di comando).
+    func uploadWithLFTP(_ local: URL, as name: String) async throws {
+        guard let lftp = Self.lftpPath, site.connection != .manual else { throw fail(L("lftp non è installato.")) }
+        let scheme = site.connection == .sftp ? "sftp" : "ftp"
+        func q(_ s: String) -> String { "\"" + s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\"" }
+        var script = ["set net:timeout 20", "set net:max-retries 2", "set cmd:fail-exit yes", "set sftp:auto-confirm yes"]
+        if site.connection == .ftps { script += ["set ftp:ssl-force true", "set ftp:ssl-protect-data true"] }
+        if site.connection == .ftp { script += ["set ftp:ssl-allow false"] }
+        if site.allowInvalidCertificates { script += ["set ssl:verify-certificate no"] }
+        script += ["open --env-password -u \(q(site.username)) -p \(site.port) \(scheme)://\(site.host)",
+                   "put \(q(local.path)) -o \(q(remoteDir + name))", "bye"]
+        let dir = AppPaths.temp()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("script.lftp")
+        try script.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+        let r = try await Shell.run(lftp, ["-f", file.path], env: ["LFTP_PASSWORD": password])
+        guard r.ok else {
+            let e = password.isEmpty ? r.stderr : r.stderr.replacingOccurrences(of: password, with: "****")
+            throw fail(L("Caricamento con lftp non riuscito."), hint: nil, detail: e.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+    }
+
+    /// Carica dati in un file temporaneo remoto e ne restituisce la dimensione letta dal server (poi lo toglie).
+    func probe(_ data: Data, name: String, useLFTP: Bool = false) async -> Int64? {
+        let dir = AppPaths.temp()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let f = dir.appendingPathComponent(name)
+        guard (try? data.write(to: f)) != nil else { return nil }
+        do {
+            if useLFTP { try await uploadWithLFTP(f, as: name) } else { try await upload(f, as: name) }
+        } catch { return nil }
+        let size = await size(of: name)
+        try? await delete(name)
+        return size
+    }
+
     /// Dimensione di un file nella cartella remota (nil se non c'è o non si riesce a leggerla).
     func size(of name: String) async -> Int64? {
         guard let list = try? await entries(in: remoteDir) else { return nil }

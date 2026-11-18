@@ -145,9 +145,7 @@ final class SiteSession: ObservableObject {
             note(L("Carico %@ in %@ (%@).", name, transport.remoteDir, site.connection.label))
             try await transport.upload(tmp, as: name)
             if let size = await transport.size(of: name), size != localSize {
-                throw fail(L("Il ponte caricato sul server è incompleto (%@ byte invece di %@).", String(size), String(localSize)),
-                           hint: L("L'antivirus dell'hosting potrebbe averlo bloccato o svuotato, oppure lo spazio è esaurito."),
-                           detail: L("File: %@%@", transport.remoteDir, name))
+                try await recoverBrokenUpload(transport, tmp: tmp, name: name, localSize: localSize, remoteSize: size)
             }
         }
         try? FileManager.default.removeItem(at: tmp)
@@ -170,6 +168,56 @@ final class SiteSession: ObservableObject {
         bridgeInstalled = true
         note(L("Ponte attivo sul server (PHP %@, scade fra 4 ore).", ping["php"].string ?? "?"), .success)
         return bridge
+    }
+
+    /// Il ponte è arrivato incompleto: capisce perché con file di prova e, se è il trasferimento, riprova con lftp.
+    private func recoverBrokenUpload(_ transport: Transport, tmp: URL, name: String, localSize: Int64, remoteSize: Int64) async throws {
+        note(L("Il ponte è arrivato sul server con %@ byte invece di %@: faccio delle prove per capire perché.", String(remoteSize), String(localSize)), .warning)
+        status(L("Prove di caricamento…"))
+        let tag = Hashing.randomHex(6)
+        // 1. Testo qualunque della stessa dimensione: se arriva vuoto anche lui, è il trasferimento FTP.
+        let text = Data(String(repeating: "Mirrorpress upload test. ", count: Int(localSize) / 25 + 1).prefix(Int(localSize)).utf8)
+        let textSize = await transport.probe(text, name: "mirrorpress-probe-\(tag).txt")
+        // 2. Un PHP minimo e innocuo: se arriva intero, il problema è il contenuto del ponte (antivirus).
+        let php = Data("<?php\n// Mirrorpress upload test\necho 'ok';\n".utf8)
+        let phpSize = await transport.probe(php, name: "mirrorpress-probe-\(tag).php")
+        var lines = [
+            L("Ponte: caricati %@ byte, sul server %@.", String(localSize), String(remoteSize)),
+            L("Prova testo (%@ byte): sul server %@.", String(text.count), textSize.map(String.init) ?? "?"),
+            L("Prova PHP minimo (%@ byte): sul server %@.", String(php.count), phpSize.map(String.init) ?? "?"),
+            L("Strumento: curl (%@).", site.connection.label),
+        ]
+        let transferBroken = textSize != Int64(text.count)
+
+        // Secondo tentativo con lftp (Homebrew), che negozia FTPS in modo diverso da curl.
+        if Transport.lftpPath != nil {
+            status(L("Riprovo il caricamento con lftp…"))
+            do {
+                try await transport.uploadWithLFTP(tmp, as: name)
+                let again = await transport.size(of: name)
+                lines.append(L("Ponte ricaricato con lftp: sul server %@ byte.", again.map(String.init) ?? "?"))
+                if again == localSize {
+                    note(L("Con lftp il ponte è arrivato intero: continuo."), .success, detail: lines.joined(separator: "\n"))
+                    return
+                }
+            } catch let e as MirrorpressError {
+                lines.append(L("lftp: %@", e.errorDescription ?? "") + (e.detail.map { "\n" + $0 } ?? ""))
+            }
+        } else {
+            lines.append(L("lftp non è installato (brew install lftp): niente secondo tentativo."))
+        }
+        try? await transport.delete(name)
+
+        if transferBroken {
+            throw fail(L("Il server FTP salva i file vuoti: il problema è il trasferimento, non il ponte."),
+                       hint: site.connection == .ftps
+                           ? L("Prova la connessione FTP semplice o SFTP nel profilo, oppure installa lftp (brew install lftp) e riprova.")
+                           : L("Prova FTPS o SFTP nel profilo, oppure installa lftp (brew install lftp) e riprova."),
+                       detail: lines.joined(separator: "\n"))
+        }
+        throw fail(L("L'antivirus dell'hosting svuota il ponte: un file di testo e un PHP semplice arrivano interi, il ponte no."),
+                   hint: L("L'hosting scambia il ponte per uno strumento pericoloso. Chiedi all'assistenza di consentire i file mirrorpress-*.php nella cartella del sito (o di disattivare l'antivirus per qualche minuto), poi riprova."),
+                   detail: lines.joined(separator: "\n"))
     }
 
     /// Modalità manuale: l'utente ha caricato il ponte.
