@@ -48,6 +48,9 @@ struct SiteProfile: Codable, Identifiable, Hashable {
     var compareContent = true  // MD5 dei file con la stessa dimensione
     var notes = ""
 
+    // Rete: VPN da attivare prima di collegarsi (es. "FortiClient"); vuoto = nessuna.
+    var vpn = ""
+
     static let defaultExcludes = [
         ".DS_Store", ".git", ".svn", ".idea", ".vscode", "node_modules", "Thumbs.db",
         "_da_eliminare", ".well-known", "cgi-bin", "error_log", "*.log",
@@ -68,6 +71,33 @@ struct SiteProfile: Codable, Identifiable, Hashable {
     }
 
     var keychainAccount: String { id.uuidString }
+}
+
+/// Lettura tollerante: i campi mancanti (profili salvati da versioni precedenti) prendono il valore predefinito,
+/// così aggiungere un campo non fa mai sparire i profili esistenti.
+extension SiteProfile {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = SiteProfile()
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? d.id
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? d.name
+        localPath = try c.decodeIfPresent(String.self, forKey: .localPath) ?? d.localPath
+        localURL = try c.decodeIfPresent(String.self, forKey: .localURL) ?? d.localURL
+        remoteURL = try c.decodeIfPresent(String.self, forKey: .remoteURL) ?? d.remoteURL
+        connection = (try? c.decodeIfPresent(ConnectionKind.self, forKey: .connection)) ?? d.connection
+        host = try c.decodeIfPresent(String.self, forKey: .host) ?? d.host
+        port = try c.decodeIfPresent(Int.self, forKey: .port) ?? d.port
+        username = try c.decodeIfPresent(String.self, forKey: .username) ?? d.username
+        remotePath = try c.decodeIfPresent(String.self, forKey: .remotePath) ?? d.remotePath
+        allowInvalidCertificates = try c.decodeIfPresent(Bool.self, forKey: .allowInvalidCertificates) ?? d.allowInvalidCertificates
+        httpAuthUser = try c.decodeIfPresent(String.self, forKey: .httpAuthUser) ?? d.httpAuthUser
+        localDBOverride = try c.decodeIfPresent(DBOverride.self, forKey: .localDBOverride) ?? d.localDBOverride
+        remoteDBOverride = try c.decodeIfPresent(DBOverride.self, forKey: .remoteDBOverride) ?? d.remoteDBOverride
+        excludes = try c.decodeIfPresent([String].self, forKey: .excludes) ?? d.excludes
+        compareContent = try c.decodeIfPresent(Bool.self, forKey: .compareContent) ?? d.compareContent
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? d.notes
+        vpn = try c.decodeIfPresent(String.self, forKey: .vpn) ?? d.vpn
+    }
 }
 
 struct DBOverride: Codable, Hashable {

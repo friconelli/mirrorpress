@@ -231,6 +231,9 @@ struct SiteEditorView: View {
                                     TextField("", value: $site.port, format: .number.grouping(.never)).frame(width: 60)
                                 }
                             }
+                            FieldRow("VPN richiesta") {
+                                TextField("", text: $site.vpn, prompt: Text("vuoto = nessuna  ·  es. FortiClient"))
+                            }
                             FieldRow("Utente") { TextField("", text: $site.username) }
                             FieldRow("Password") {
                                 SecureField("", text: $password, prompt: Text(site.connection == .sftp ? "vuota = chiave SSH" : ""))

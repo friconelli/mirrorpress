@@ -33,6 +33,9 @@ struct SiteDetailView: View {
         VStack(spacing: 0) {
             header
             if let busy = session.busy { BusyBar(text: busy, progress: session.progress) { session.cancel() } }
+            if !session.site.vpn.trimmingCharacters(in: .whitespaces).isEmpty && !session.bridgeInstalled {
+                VPNBanner(name: session.site.vpn)
+            }
             if let file = session.manualBridgeFile { ManualBridgeBanner(session: session, file: file) }
             if let err = session.lastError, session.busy == nil, session.manualBridgeFile == nil {
                 let last = session.log.last { $0.kind == .error }
@@ -141,6 +144,20 @@ struct BusyBar: View {
         }
         .padding(.horizontal, 20).padding(.vertical, 8)
         .background(Theme.amber.opacity(0.12))
+    }
+}
+
+/// Promemoria: per questo server bisogna prima accendere una VPN.
+struct VPNBanner: View {
+    let name: String
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "lock.shield.fill").foregroundStyle(Theme.local)
+            Text("Prima di collegarti attiva la VPN \(name): il server non risponde da fuori.").font(Theme.font(.callout, .semibold))
+            Spacer()
+        }
+        .padding(.horizontal, 20).padding(.vertical, 9)
+        .background(Theme.local.opacity(0.10))
     }
 }
 

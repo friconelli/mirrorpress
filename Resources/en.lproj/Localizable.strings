@@ -785,3 +785,7 @@
 "wp-config.php scritto per MAMP (database «%@», utente root) e .htaccess per %@." = "wp-config.php written for MAMP (database “%@”, user root) and .htaccess for %@.";
 "wp-config.php: database MAMP (utente root), cache dell'hosting spenta, inclusioni dell'hosting commentate." = "wp-config.php: MAMP database (user root), host cache off, host includes commented out.";
 "wp-config.php: database dell'hosting qui sotto, WP_DEBUG spento." = "wp-config.php: the host database below, WP_DEBUG off.";
+"VPN richiesta" = "Required VPN";
+"vuoto = nessuna  ·  es. FortiClient" = "empty = none  ·  e.g. FortiClient";
+"Prima di collegarti attiva la VPN %@: il server non risponde da fuori." = "Turn on the %@ VPN before connecting: the server doesn't answer from outside.";
+"Questo server richiede la VPN %@: controlla che sia attiva." = "This server needs the %@ VPN: check that it's on.";

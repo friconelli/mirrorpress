@@ -237,4 +237,23 @@ final class CoreTests: XCTestCase {
         XCTAssertFalse(server.contains("/sito/"))
         XCTAssertEqual(SiteCloner.slug("Villa Patrizia (demo)"), "villa_patrizia_demo")
     }
+
+    func testOldProfilesStillLoad() throws {
+        // Profilo salvato da una versione precedente: niente "vpn", niente "notes".
+        let json = """
+        [{"id":"172283C4-FB13-4D32-9CC9-76D0955910B4","name":"16Noni","localPath":"/x","localURL":"","remoteURL":"https://a.it",
+          "connection":"ftps","host":"ftp.a.it","port":990,"username":"u","remotePath":"/www.a.it/","allowInvalidCertificates":true,
+          "httpAuthUser":"","localDBOverride":{"name":"","user":"","host":"","prefix":""},
+          "remoteDBOverride":{"name":"","user":"","host":"","prefix":""},"excludes":[".git"],"compareContent":true}]
+        """
+        let sites = try JSONDecoder().decode([SiteProfile].self, from: Data(json.utf8))
+        XCTAssertEqual(sites.count, 1)
+        XCTAssertEqual(sites[0].port, 990)
+        XCTAssertEqual(sites[0].vpn, "")
+        XCTAssertEqual(sites[0].notes, "")
+        // E il giro completo mantiene il campo nuovo.
+        var s = sites[0]; s.vpn = "FortiClient"
+        let again = try JSONDecoder().decode(SiteProfile.self, from: JSONEncoder().encode(s))
+        XCTAssertEqual(again.vpn, "FortiClient")
+    }
 }

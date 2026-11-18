@@ -92,7 +92,13 @@ final class SiteSession: ObservableObject {
         } catch {
             let e = (error as? MirrorpressError) ?? describeNetworkError(error, url: nil)
             lastError = e.errorDescription
-            note(e.errorDescription ?? error.localizedDescription, .error, hint: e.hint, detail: e.detail)
+            var hint = e.hint
+            let vpn = site.vpn.trimmingCharacters(in: .whitespaces)
+            if !vpn.isEmpty {
+                let v = L("Questo server richiede la VPN %@: controlla che sia attiva.", vpn)
+                hint = hint.map { v + " " + $0 } ?? v
+            }
+            note(e.errorDescription ?? error.localizedDescription, .error, hint: hint, detail: e.detail)
         }
         busy = nil
         progress = nil

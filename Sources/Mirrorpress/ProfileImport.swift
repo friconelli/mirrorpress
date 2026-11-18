@@ -15,6 +15,7 @@ enum ProfileImport {
         var remotePath: String
         var allowInvalidCertificates: Bool?
         var notes: String?
+        var vpn: String?
         var password: String?
     }
 
@@ -39,6 +40,7 @@ enum ProfileImport {
             site.remotePath = e.remotePath
             if let v = e.allowInvalidCertificates { site.allowInvalidCertificates = v }
             if let n = e.notes { site.notes = n }
+            if let v = e.vpn { site.vpn = v }
             store.upsert(site)
             if let pw = e.password, !pw.isEmpty { Secret.connection.set(pw, for: site) }
             print("\(isNew ? "nuovo" : "aggiornato"): \(site.name) → \(site.connection.rawValue)://\(site.host):\(site.port)\(site.remotePath) · \(site.remoteURL)")
