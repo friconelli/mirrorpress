@@ -187,4 +187,54 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(open.map(\.name), ["plugins/p", "themes/t", "inc", "style.css"])
         XCTAssertEqual(open[2].depth, 1)
     }
+
+    func testClonerRewritesWPConfig() {
+        let src = """
+        <?php
+        define( 'DB_NAME', 'Sql123_1' );
+        define('DB_USER', "utente");
+        define( 'DB_PASSWORD', 'p\\'a$s' );
+        define( 'DB_HOST', '31.11.39.1' );
+        define( 'WP_HOME', 'https://www.sito.it' );
+        define( 'WP_CACHE', true );
+        require_once('/nas/content/live/sito/wpe-config.php');
+        require_once ABSPATH . 'wp-settings.php';
+        $table_prefix = 'xy_';
+        """
+        let (out, notes) = SiteCloner.rewriteWPConfig(src, db: DBCredentials(name: "sito", user: "root", password: "ro'ot", host: "localhost"),
+                                                      url: "http://localhost:8888/sito", toLocal: true)
+        XCTAssertTrue(out.contains("define( 'DB_NAME', 'sito' )"))
+        XCTAssertTrue(out.contains("define( 'DB_USER', 'root' )"))
+        XCTAssertTrue(out.contains("define( 'DB_PASSWORD', 'ro\\'ot' )"))
+        XCTAssertTrue(out.contains("define( 'DB_HOST', 'localhost' )"))
+        XCTAssertTrue(out.contains("define( 'WP_HOME', 'http://localhost:8888/sito' )"))
+        XCTAssertTrue(out.contains("define( 'WP_CACHE', false )"))
+        XCTAssertTrue(out.contains("// [Mirrorpress] require_once('/nas/"))
+        XCTAssertTrue(out.contains("require_once ABSPATH . 'wp-settings.php';"))
+        XCTAssertFalse(out.contains("// [Mirrorpress] require_once ABSPATH"))
+        XCTAssertTrue(out.contains("$table_prefix = 'xy_';"))
+        XCTAssertGreaterThanOrEqual(notes.count, 3)
+        // Il risultato deve essere PHP valido.
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("wpc-\(UUID().uuidString).php")
+        try? out.write(to: tmp, atomically: true, encoding: .utf8)
+        if let php = LocalEnv.phpBinary {
+            let p = Process(); p.executableURL = URL(fileURLWithPath: php); p.arguments = ["-n", "-l", tmp.path]
+            p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
+            try? p.run(); p.waitUntilExit()
+            XCTAssertEqual(p.terminationStatus, 0, out)
+        }
+    }
+
+    func testClonerHtaccess() {
+        let remote = "Header set X-Test 1\n# BEGIN WordPress\nRewriteBase /\n# END WordPress\nRewriteCond %{HTTPS} off\n"
+        let local = SiteCloner.rewriteHtaccess(remote, url: "http://localhost:8888/sito", toLocal: true)
+        XCTAssertTrue(local.contains("RewriteBase /sito/"))
+        XCTAssertTrue(local.contains("RewriteRule . /sito/index.php [L]"))
+        XCTAssertFalse(local.contains("HTTPS"))
+        let server = SiteCloner.rewriteHtaccess("Header set X-Test 1\n# BEGIN WordPress\nRewriteBase /sito/\n# END WordPress\n", url: "https://www.sito.it", toLocal: false)
+        XCTAssertTrue(server.contains("Header set X-Test 1"))
+        XCTAssertTrue(server.contains("RewriteBase /\n"))
+        XCTAssertFalse(server.contains("/sito/"))
+        XCTAssertEqual(SiteCloner.slug("Villa Patrizia (demo)"), "villa_patrizia_demo")
+    }
 }

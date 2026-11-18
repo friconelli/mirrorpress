@@ -13,6 +13,7 @@ struct SyncView: View {
     @State private var acceptLoss = false
     @State private var showRules = false
     @State private var showGuided = false
+    @State private var cloneJob: CloneJob?
 
     private var byArea: [SyncArea: [FileDiff]] {
         Dictionary(grouping: session.files.filter { $0.status != .same }) { SyncRules.area($0.path) }
@@ -20,7 +21,11 @@ struct SyncView: View {
 
     var body: some View {
         Group {
-            if session.analyzedAt == nil {
+            if session.localMissing && cloneJob == nil {
+                ScrollView { CloneCard(session: session, target: .local) { cloneJob = $0 }.padding(20) }
+            } else if (session.remoteMissing || CommandLine.arguments.contains("--clone-remote")) && session.analyzedAt == nil && cloneJob == nil {
+                ScrollView { CloneCard(session: session, target: .remote) { cloneJob = $0 }.padding(20) }
+            } else if session.analyzedAt == nil {
                 emptyState
             } else {
                 ScrollView {
@@ -60,6 +65,9 @@ struct SyncView: View {
             DBConfirmSheet(session: session, target: box.side, keys: keys, acceptLoss: $acceptLoss) { dbTarget = nil }
         }
         .sheet(isPresented: $showRules) { SyncRulesSheet() }
+        .sheet(item: $cloneJob) { job in
+            CloneProgressSheet(session: session, target: job.target, db: job.db) { cloneJob = nil }
+        }
         .sheet(isPresented: $showGuided) { GuidedMirrorSheet(session: session) { showGuided = false } }
         .onChange(of: session.analyzedAt) { at in
             if at != nil, CommandLine.arguments.contains("--guided") { showGuided = true }

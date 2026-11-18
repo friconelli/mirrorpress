@@ -15,6 +15,10 @@ final class SiteSession: ObservableObject {
     @Published private(set) var issues: [Issue] = []
     @Published private(set) var analyzedAt: Date?
     @Published var codeFindings: [CodeFinding] = []
+    /// La cartella del server è vuota: si può creare lì una copia del sito del Mac.
+    @Published var remoteMissing = false
+    /// Sul Mac il sito non c'è ancora (nessun wp-config.php): si può creare una copia del sito del server.
+    var localMissing: Bool { !FileManager.default.fileExists(atPath: localRoot.appendingPathComponent("wp-config.php").path) }
     @Published var codeCheckedAt: Date?
     @Published private(set) var backups: [JSONValue] = []
     @Published private(set) var bridgeInstalled = false
@@ -151,6 +155,14 @@ final class SiteSession: ObservableObject {
             status(L("Controllo la cartella remota…"))
             let names = try await transport.list()
             let isWordPress = FileManager.default.fileExists(atPath: localRoot.appendingPathComponent("wp-config.php").path)
+            let looksEmpty = !names.contains("wp-config.php") && !names.contains("index.php") && !names.contains("wp-admin")
+                && names.filter { !$0.hasPrefix(".") && $0 != "cgi-bin" && $0 != "_da_eliminare" }.count <= 3
+            remoteMissing = isWordPress && looksEmpty
+            if remoteMissing {
+                throw fail(L("Nella cartella del server %@ non c'è ancora un sito.", transport.remoteDir),
+                           hint: L("Nella scheda Sincronizza puoi crearci una copia del sito del Mac (servono i dati del database dell'hosting)."),
+                           detail: L("Contenuto di %@: %@", transport.remoteDir, names.isEmpty ? L("(vuota)") : names.joined(separator: ", ")))
+            }
             if isWordPress && site.remoteDBOverride.isEmpty && !names.contains("wp-config.php") {
                 let found = await transport.findWordPress(from: "/")
                 let listing = L("Contenuto di %@: %@", transport.remoteDir, names.isEmpty ? L("(vuota)") : names.prefix(30).joined(separator: ", "))

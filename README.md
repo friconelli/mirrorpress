@@ -39,6 +39,15 @@ La scheda principale. **Pull ↓** copia dal server al Mac, **Push ↑** dal Mac
 
 Tre passi: **direzione** (Pubblica sul server / Aggiorna il Mac) → **cosa portare**, per importanza: *essenziale* tema attivo (e genitore) e contenuti (posts, postmeta, termini, menu), *consigliato* impostazioni (options: personalizzazioni del tema, widget, menu), *facoltativo* file dei plugin (basta che le versioni siano compatibili: mostra quelle diverse), media, utenti, commenti, tabelle dei plugin → **riepilogo** con le righe che si perderebbero (da confermare) → esecuzione: prima i file, poi il database in un solo passaggio (un backup, uno scambio atomico), poi nuova analisi.
 
+## Creare una copia del sito (clone)
+
+Quando da una parte il sito **non c'è ancora**, la scheda Sincronizza propone di crearne la copia completa. I dati di connessione restano quelli del profilo.
+
+- **Dal server al Mac**: nel profilo scegli una cartella nuova (pulsante **Nuova in MAMP**, che imposta anche `http://localhost:8888/<cartella>`), poi «Crea la copia sul Mac». Mirrorpress crea il database in MAMP (mai sovrascrive uno esistente con tabelle), scarica `wp-config.php` e lo riscrive (database MAMP con utente root, `WP_HOME`/`WP_SITEURL` aggiornati, `WP_CACHE` spento, inclusioni con percorsi assoluti dell'hosting commentate), scrive un `.htaccess` con solo le regole di WordPress e `RewriteBase /<cartella>/` (l'originale del server finisce nel Log), poi scarica i file e il database con gli indirizzi sostituiti.
+- **Dal Mac al server**: con una cartella vuota sull'hosting e un database vuoto creato dal pannello, la scheda chiede nome, utente, password e server del database; Mirrorpress carica via FTP/SFTP un `wp-config.php` con quei dati (`WP_DEBUG` spento) e un `.htaccess` con le regole di WordPress per la radice del sito (le regole personalizzate restano), poi carica file e database.
+
+La riscrittura è in `SiteCloner.swift` (testata, anche con `php -l`); i passi in `CloneSite.swift`. Prova: `--clone <db> [utente password host]` (e `--clone-remote` con `--bridge-dir`).
+
 ## Controllo del codice
 
 Scheda Controlli → **Codice** → «Controlla il codice» (a parte dall'analisi: la prima volta calcola gli hash di migliaia di file). Sui due lati:

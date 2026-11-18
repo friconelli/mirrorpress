@@ -553,6 +553,8 @@ function trv_code_scan($req) {
         if ($data === false) continue;
         $low = strtolower($rel);
         $own = strpos($low, 'wp-content/themes/') === 0 || strpos($low, 'wp-content/mu-plugins/') === 0 || strpos($low, '/') === false;
+        // Librerie di terzi dentro il tema (composer, npm): non sono codice proprio.
+        if (strpos($low, '/vendor/') !== false || strpos($low, '/node_modules/') !== false) $own = false;
         $isJs = substr($low, -3) === '.js';
         $minified = substr($low, -7) === '.min.js' || ($isJs && strlen($data) > 2000 && substr_count($data, "\n") < 5);
         if (strpos($low, 'wp-content/uploads/') === 0 && preg_match('~\.(php\d?|phtml|phar)$~', $low)) {
@@ -569,6 +571,8 @@ function trv_code_scan($req) {
             $n = 0;
             foreach ($m[0] as $hit) {
                 // Righe commentate: non contano per debug e indirizzi locali.
+                // Immagini e font incorporati (data:...;base64,) non sono codice nascosto.
+                if ($id === 'long_base64' && stripos(substr($data, max(0, $hit[1] - 40), 40), 'base64,') !== false) continue;
                 $lineStart = strrpos(substr($data, 0, $hit[1]), "\n");
                 $lineText = substr($data, $lineStart === false ? 0 : $lineStart + 1, 300);
                 $nl = strpos($lineText, "\n");

@@ -199,6 +199,8 @@ struct SiteEditorView: View {
                             HStack {
                                 TextField("", text: $site.localPath, prompt: Text("/Applications/MAMP/htdocs/sito"))
                                 Button("Scegli…") { chooseFolder() }
+                                Button("Nuova in MAMP") { newMampFolder() }
+                                    .help("Per creare sul Mac una copia di un sito che c'è solo sul server")
                             }
                         }
                         if let pipelineWarning {
@@ -356,6 +358,17 @@ struct SiteEditorView: View {
         site.localPath = url.path
         if site.name.isEmpty { site.name = url.lastPathComponent.replacingOccurrences(of: "-", with: " ").capitalized }
         checkPipeline()
+    }
+
+    /// Cartella nuova in htdocs, dal nome del sito o dal dominio: la copia la crea poi la scheda Sincronizza.
+    private func newMampFolder() {
+        let base = !site.name.isEmpty ? site.name : (URL(string: site.remoteURL)?.host ?? "sito").replacingOccurrences(of: "www.", with: "")
+        var name = SiteCloner.slug(base).replacingOccurrences(of: "_", with: "-")
+        if name.isEmpty { name = "sito" }
+        var candidate = name, i = 2
+        while FileManager.default.fileExists(atPath: LocalEnv.mampHtdocs.appendingPathComponent(candidate).path) { candidate = "\(name)-\(i)"; i += 1 }
+        site.localPath = LocalEnv.mampHtdocs.appendingPathComponent(candidate).path
+        if site.localURL.isEmpty { site.localURL = "http://localhost:8888/" + candidate }
     }
 
     private func save() {
