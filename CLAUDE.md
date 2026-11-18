@@ -15,3 +15,6 @@ App macOS SwiftUI (SwiftPM, nessuna dipendenza) per sincronizzare siti WordPress
 - Bundle id `com.federicomancinelli.mirrorpress`. Repository pubblico `friconelli/mirrorpress`: release con `Scripts/release.sh`.
 - **Errori**: usare `fail(messaggio, hint:, detail:)` (`MirrorpressError`), il Log mostra suggerimento e dettagli tecnici. Mai mettere password nei dettagli: `Transport.ftpDialogue` oscura `PASS`.
 - **Sfoglia…** (`RemoteBrowser.swift`) usa `Transport.entries(in:)`/`parseListing` (formati Unix e IIS); `findWordPress` cerca `wp-config.php` fino a 2-3 livelli.
+- **FTP con TLS: sempre `--tls-max 1.2`** (Aruba tronca a 0 byte gli upload TLS 1.3 sopra ~8 KB, verificato il 18/11/2026 su 16noni). Porta 990 = FTPS implicito (`ftps://`).
+- Il ponte remoto verifica SEMPRE il certificato HTTPS (`allowInvalidCertificates` vale solo per l'FTP) e rifiuta indirizzi http (salvo localhost).
+- Le schermate con `--snapshot` escono con `NSApp.terminate` così il delegate toglie i ponti; se si interrompe l'app a forza, il ponte resta sul server fino alla scadenza.

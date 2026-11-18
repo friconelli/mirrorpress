@@ -7,8 +7,8 @@ enum ConnectionKind: String, Codable, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .sftp: return "SFTP (SSH)"
-        case .ftps: return "FTPS (FTP + TLS)"
-        case .ftp: return L("FTP (non cifrato)")
+        case .ftps: return L("FTPS (TLS obbligatorio; porta 990 = implicito)")
+        case .ftp: return L("FTP (TLS se disponibile)")
         case .manual: return L("Manuale (carico io il ponte)")
         }
     }

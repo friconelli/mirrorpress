@@ -66,7 +66,7 @@ struct SiteDetailView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
-            SiteMonogram(name: session.site.name, size: 44)
+            SiteIcon(site: session.site, size: 44)
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
                     Text(session.site.name).font(Theme.font(.title2, .heavy)).lineLimit(1)
@@ -254,21 +254,32 @@ struct BridgePill: View {
 struct ManualBridgeBanner: View {
     @ObservedObject var session: SiteSession
     let file: URL
+    private var folder: String { session.site.remotePath.isEmpty ? "/" : session.site.remotePath }
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "hand.raised.fill").foregroundStyle(Theme.amber)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Carica il ponte sul server").font(Theme.font(.callout, .bold))
-                Text("Metti \(file.lastPathComponent) nella cartella del sito (accanto a wp-config.php) con il file manager dell'hosting.")
-                    .font(Theme.font(.caption)).foregroundStyle(.secondary)
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "hand.raised.fill").foregroundStyle(Theme.amber).font(.system(size: 16))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Carica il ponte a mano").font(Theme.font(.callout, .bold))
+                Text("1. Con il file manager dell'hosting apri la cartella del sito, quella con wp-config.php (\(folder)).")
+                Text("2. Carica \(file.lastPathComponent) così com'è, senza rinominarlo né modificarlo.")
+                Text("3. Torna qui e premi «Ho caricato il ponte».")
+                if let exp = session.manualBridgeExpires {
+                    Label("Sicuro: risponde solo alle richieste firmate da questa app (HMAC con un token unico), solo in HTTPS, e alle \(exp.formatted(date: .omitted, time: .shortened)) si disattiva e si cancella da solo.", systemImage: "lock.shield")
+                        .foregroundStyle(Theme.ok)
+                }
             }
+            .font(Theme.font(.caption))
+            .foregroundStyle(.secondary)
             Spacer()
-            Button("Mostra il file") { NSWorkspace.shared.activateFileViewerSelecting([file]) }
-                .buttonStyle(ChipButtonStyle(color: Theme.amber))
-            Button("Ho caricato il ponte") { Task { await session.confirmManualBridge(); await session.analyze() } }
-                .buttonStyle(ActionButtonStyle(color: Theme.remote))
+            VStack(alignment: .trailing, spacing: 8) {
+                Button("Mostra il file") { NSWorkspace.shared.activateFileViewerSelecting([file]) }
+                    .buttonStyle(ChipButtonStyle(color: Theme.amber))
+                Button("Ho caricato il ponte") { Task { await session.confirmManualBridge(); await session.analyze() } }
+                    .buttonStyle(ActionButtonStyle(color: Theme.remote))
+                Button("Annulla") { session.discardManualFile() }.buttonStyle(.link).font(Theme.font(.caption))
+            }
         }
-        .padding(.horizontal, 20).padding(.vertical, 10)
+        .padding(.horizontal, 20).padding(.vertical, 12)
         .background(Theme.amber.opacity(0.12))
     }
 }

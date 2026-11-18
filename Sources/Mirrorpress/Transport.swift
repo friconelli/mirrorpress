@@ -75,11 +75,10 @@ struct Transport {
     /// Carica con lftp (password via LFTP_PASSWORD, mai sulla riga di comando).
     func uploadWithLFTP(_ local: URL, as name: String) async throws {
         guard let lftp = Self.lftpPath, site.connection != .manual else { throw fail(L("lftp non è installato.")) }
-        let scheme = site.connection == .sftp ? "sftp" : "ftp"
+        let scheme = site.connection == .sftp ? "sftp" : (site.connection == .ftps && site.port == 990 ? "ftps" : "ftp")
         func q(_ s: String) -> String { "\"" + s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\"" }
         var script = ["set net:timeout 20", "set net:max-retries 2", "set cmd:fail-exit yes", "set sftp:auto-confirm yes"]
         if site.connection == .ftps { script += ["set ftp:ssl-force true", "set ftp:ssl-protect-data true"] }
-        if site.connection == .ftp { script += ["set ftp:ssl-allow false"] }
         if site.allowInvalidCertificates { script += ["set ssl:verify-certificate no"] }
         script += ["open --env-password -u \(q(site.username)) -p \(site.port) \(scheme)://\(site.host)",
                    "put \(q(local.path)) -o \(q(remoteDir + name))", "bye"]
@@ -178,7 +177,10 @@ struct Transport {
 
     private func ftpURL(_ path: String) -> String {
         let encoded = path.split(separator: "/", omittingEmptySubsequences: false).map { String($0).rawURLEncoded }.joined(separator: "/")
-        return "ftp://\(site.host):\(site.port)\(encoded.hasPrefix("/") ? "" : "/")\(encoded)"
+        // Porta 990 = FTPS implicito (TLS dal primo byte, come «FTPS» in FileZilla); altrimenti FTP con AUTH TLS.
+        let scheme = site.connection == .ftps && site.port == 990 ? "ftps" : "ftp"
+        let path = encoded.hasPrefix("/") ? encoded : "/" + encoded
+        return scheme + "://" + site.host + ":" + String(site.port) + path
     }
 
     private func curl(_ args: [String], op: String) async throws -> Shell.Result {
@@ -192,6 +194,10 @@ struct Transport {
         var a = ["--verbose", "--silent", "--show-error", "--netrc-file", netrc.path, "--connect-timeout", "20", "--max-time", "300",
                  "--ftp-pasv", "--ftp-create-dirs"]
         if site.connection == .ftps { a += ["--ssl-reqd"] }
+        if site.connection == .ftp { a += ["--ssl"] }   // TLS se il server lo offre, altrimenti in chiaro
+        // TLS 1.2: con TLS 1.3 alcuni server FTP (Aruba, verificato su 16noniassisi.it) salvano vuoti i file
+        // oltre ~8 KB senza dare errore. TLS 1.2 resta cifrato e funziona.
+        if site.connection != .sftp { a += ["--tls-max", "1.2"] }
         if site.allowInvalidCertificates { a += ["--insecure"] }
         let r = try await Shell.run("/usr/bin/curl", a + args)
         guard r.ok else { throw explainCurl(r.status, stderr: r.stderr, op: op) }

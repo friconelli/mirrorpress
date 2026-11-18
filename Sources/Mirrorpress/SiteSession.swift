@@ -18,6 +18,7 @@ final class SiteSession: ObservableObject {
     @Published private(set) var bridgeInstalled = false
     /// In modalità manuale: il ponte da caricare a mano, in attesa di conferma.
     @Published var manualBridgeFile: URL?
+    @Published var manualBridgeExpires: Date?
     @Published var lastError: String?
 
     private var remote: RemoteBridge?
@@ -104,6 +105,17 @@ final class SiteSession: ObservableObject {
             if (try? await remote.call("ping", [:])) != nil { return remote }
             bridgeInstalled = false
         }
+        // Ponte a mano già preparato: si aspetta quello (stesso token), non se ne crea un altro.
+        if let remote, let file = manualBridgeFile {
+            if (try? await remote.call("ping", [:])) != nil {
+                bridgeInstalled = true
+                discardManualFile()
+                note(L("Ponte caricato a mano: raggiungibile."), .success)
+                return remote
+            }
+            throw fail(L("Il ponte %@ non risponde ancora.", file.lastPathComponent),
+                       hint: L("Caricalo nella cartella del sito (accanto a wp-config.php) con il file manager dell'hosting, poi premi «Ho caricato il ponte»."))
+        }
         guard let base = site.bridgeBaseURL else { throw fail(L("Manca l'indirizzo del sito sul server nel profilo.")) }
         if let reason = LocalEnv.pipelineReason(for: localRoot) { throw fail(reason) }
         let token = Hashing.randomHex(32)
@@ -113,15 +125,18 @@ final class SiteSession: ObservableObject {
         let tmp = AppPaths.temp().appendingPathComponent(name)
         try source.write(to: tmp, atomically: true, encoding: .utf8)
 
+        if !Self.isSecure(base) {
+            throw fail(L("L'indirizzo del sito deve essere https."),
+                       hint: L("Il ponte trasmette file e database: Mirrorpress lo usa solo in HTTPS. Correggi l'indirizzo nel profilo (https://…)."))
+        }
         let bridge = RemoteBridge(url: base.appendingPathComponent(name), token: token,
                                   db: dbParams(site.remoteDBOverride, password: Secret.remoteDB.get(site)),
                                   httpUser: site.httpAuthUser, httpPassword: Secret.httpAuth.get(site),
-                                  allowInvalidCertificates: site.allowInvalidCertificates)
+                                  allowInvalidCertificates: false)   // il ponte viaggia solo su HTTPS verificato
         if site.connection == .manual {
-            manualBridgeFile = tmp
-            remote = bridge
-            bridgeName = name
-            throw fail(L("Carica il file %@ nella cartella del sito sul server (con il file manager dell'hosting), poi premi «Ho caricato il ponte».", name))
+            offerManual(tmp, name: name, bridge: bridge)
+            throw fail(L("Carica il file %@ nella cartella del sito sul server (con il file manager dell'hosting), poi premi «Ho caricato il ponte».", name),
+                       hint: L("Il file risponde solo alle richieste firmate da questa app e si disattiva da solo dopo 4 ore."))
         }
         let transport = Transport(site: site, password: Secret.connection.get(site))
         let localSize = Int64(source.utf8.count)
@@ -129,6 +144,7 @@ final class SiteSession: ObservableObject {
             status(L("Installo il ponte sul server…"))
             try await installHook(tmp, name)
         } else {
+          do {
             // Prima di caricare: la cartella remota è davvero quella del sito?
             status(L("Controllo la cartella remota…"))
             let names = try await transport.list()
@@ -147,6 +163,13 @@ final class SiteSession: ObservableObject {
             if let size = await transport.size(of: name), size != localSize {
                 try await recoverBrokenUpload(transport, tmp: tmp, name: name, localSize: localSize, remoteSize: size)
             }
+          } catch let e as MirrorpressError {
+            // Senza FTP funzionante resta la strada sicura a mano: stesso ponte firmato, caricato dal file manager.
+            if case .detailed = e, e.errorDescription?.contains("wp-config.php") == true { throw e }
+            offerManual(tmp, name: name, bridge: bridge)
+            throw fail(e.errorDescription ?? "", hint: [e.hint, L("In alternativa puoi caricare il ponte a mano: trovi le istruzioni nella barra arancione.")].compactMap { $0 }.joined(separator: " "),
+                       detail: e.detail)
+          }
         }
         try? FileManager.default.removeItem(at: tmp)
         remote = bridge
@@ -220,13 +243,39 @@ final class SiteSession: ObservableObject {
                    detail: lines.joined(separator: "\n"))
     }
 
+    static func isSecure(_ url: URL) -> Bool {
+        if url.scheme?.lowercased() == "https" { return true }
+        return ["localhost", "127.0.0.1", "::1"].contains(url.host?.lowercased() ?? "")
+    }
+
+    /// Prepara il ponte da caricare a mano: copia privata (solo per l'utente) nella cartella dell'app.
+    private func offerManual(_ tmp: URL, name: String, bridge: RemoteBridge) {
+        let dir = AppPaths.support.appendingPathComponent("ponte-manuale", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
+        let dest = dir.appendingPathComponent(name)
+        try? FileManager.default.removeItem(at: dest)
+        try? FileManager.default.copyItem(at: tmp, to: dest)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dest.path)
+        manualBridgeFile = dest
+        manualBridgeExpires = Date().addingTimeInterval(4 * 3600)
+        remote = bridge
+        bridgeName = name
+    }
+
+    /// La copia locale del ponte manuale contiene il token: si toglie appena non serve più.
+    func discardManualFile() {
+        if let f = manualBridgeFile { try? FileManager.default.removeItem(at: f) }
+        manualBridgeFile = nil
+    }
+
     /// Modalità manuale: l'utente ha caricato il ponte.
     func confirmManualBridge() async {
         guard let remote else { return }
         await perform(L("Verifico il ponte")) {
             _ = try await remote.call("ping", [:])
             bridgeInstalled = true
-            manualBridgeFile = nil
+            discardManualFile()
             note(L("Ponte raggiungibile."), .success)
         }
     }
@@ -240,7 +289,13 @@ final class SiteSession: ObservableObject {
         }
         bridgeInstalled = false
         self.remote = nil
-        note(L("Ponte rimosso dal server."))
+        discardManualFile()
+        if removed || site.connection != .manual {
+            note(L("Ponte rimosso dal server."))
+        } else {
+            note(L("Il ponte non è riuscito a cancellarsi da solo."), .warning,
+                 hint: L("Toglilo a mano con il file manager dell'hosting: %@. Comunque non risponde a nessuno senza la firma dell'app e si disattiva dopo 4 ore.", bridgeName ?? "mirrorpress-*.php"))
+        }
     }
 
     func testConnection() async {

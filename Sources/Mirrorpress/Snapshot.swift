@@ -28,7 +28,7 @@ enum Snapshot {
                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { exit(2) }
             view.cacheDisplay(in: view.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
-            exit(0)
+            NSApp.terminate(nil)   // passa dal delegate: toglie i ponti dai server prima di uscire
         }
     }
 }

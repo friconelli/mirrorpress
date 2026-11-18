@@ -140,7 +140,7 @@ func describeNetworkError(_ error: Error, url: URL?) -> MirrorpressError {
     case .cannotConnectToHost, .networkConnectionLost, .notConnectedToInternet:
         return fail(L("Connessione al sito non riuscita."), hint: L("Controlla la connessione a Internet e l'indirizzo del sito."), detail: detail)
     case .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid, .secureConnectionFailed:
-        return fail(L("Certificato HTTPS del sito non valido."), hint: L("Attiva «Accetta certificati TLS non validi» nel profilo, oppure usa l'indirizzo con il dominio giusto."), detail: detail)
+        return fail(L("Certificato HTTPS del sito non valido."), hint: L("Per sicurezza il ponte accetta solo certificati validi: usa nel profilo l'indirizzo esatto del sito (con o senza www) e controlla che il certificato non sia scaduto."), detail: detail)
     case .httpTooManyRedirects:
         return fail(L("Il sito rimanda in un giro di redirect."), hint: L("Usa nel profilo l'indirizzo finale del sito (con o senza www, https)."), detail: detail)
     default:

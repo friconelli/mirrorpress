@@ -112,7 +112,7 @@ struct SiteRow: View {
     let site: SiteProfile
     var body: some View {
         HStack(spacing: 10) {
-            SiteMonogram(name: site.name.isEmpty ? "?" : site.name, size: 30)
+            SiteIcon(site: site, size: 30)
             VStack(alignment: .leading, spacing: 1) {
                 Text(site.name.isEmpty ? L("Senza nome") : site.name).font(Theme.font(.body, .semibold)).lineLimit(1)
                 Text(URL(string: site.remoteURL)?.host ?? site.host)
@@ -243,7 +243,7 @@ struct SiteEditorView: View {
                             Text("La cartella che contiene wp-config.php, vista dall'FTP/SFTP: deve corrispondere all'indirizzo del sito.")
                                 .font(Theme.font(.caption)).foregroundStyle(.secondary)
                             if site.connection != .sftp {
-                                Toggle("Accetta certificati TLS non validi (hosting condivisi)", isOn: $site.allowInvalidCertificates)
+                                Toggle("Accetta certificati TLS non validi del server FTP (hosting condivisi)", isOn: $site.allowInvalidCertificates)
                                     .font(Theme.font(.callout))
                             }
                         } else {

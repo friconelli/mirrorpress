@@ -74,7 +74,10 @@ struct MirrorpressApp: App {
     @StateObject private var model = AppModel()
     @StateObject private var updater = Updater()
 
-    init() { Theme.registerFonts() }
+    init() {
+        ProfileImport.runIfRequested()
+        Theme.registerFonts()
+    }
 
     var body: some Scene {
         WindowGroup("Mirrorpress") {
