@@ -1,0 +1,17 @@
+# Mirrorpress
+
+Nome scelto da Federico il 18/11/2026 (prima *Travaso*; migrazione di Application Support e Portachiavi in `Storage.swift`). Repo pubblico github.com/friconelli/mirrorpress, aggiornamenti in-app dalle Releases.
+
+App macOS SwiftUI (SwiftPM, nessuna dipendenza) per sincronizzare siti WordPress/PHP tra MAMP e qualsiasi hosting. Struttura come crocini/port-manager: `Sources/Mirrorpress`, `Scripts/build_app.sh`, `Resources/Info.plist`, updater su GitHub Releases. Leggi il README prima di tutto.
+
+- **Il cuore è `Resources/Bridge/mirrorpress-bridge.php`**: stesso file in locale (CLI con PHP di MAMP, env `MIRRORPRESS_ROOT`/`MIRRORPRESS_WORKDIR`) e sul server (HTTPS, query `a`/`t`/`s` con HMAC di `ts\naction\nsha256(body)`). Deve restare compatibile con **PHP 7.0** (niente arrow function, `str_starts_with`, `match`, tipi): `build_app.sh` lo controlla con il PHP 7.4 di MAMP. Azioni binarie (`upload`, `db_import`) hanno i parametri nella prima riga `J {json}`.
+- Dopo ogni modifica al ponte: `Scripts/test_bridge.sh` e `MIRRORPRESS_E2E=1 swift test`. L'E2E clona un sito MAMP (cloni APFS + DB `mirrorpress_e2e_*`) e usa `php -S` come server: non tocca né il sito né i dati dell'app (`MIRRORPRESS_SUPPORT_DIR`).
+- Regole di sicurezza da non rompere: sul server niente `unlink` di file del sito (si sposta in `_da_eliminare`); backup prima di ogni scrittura; DB solo via tabelle di staging `trv…_` + `RENAME` atomico, con guardia sul prefisso in `db_import`; percorsi validati (`trv_abs`, e in Swift `DownloadReader`).
+- In `options` l'unica chiave con il prefisso tabelle è `{prefix}user_roles` (`wp_page_for_privacy_policy` & co. sono nomi fissi: bug già trovato e corretto).
+- Il confronto DB normalizza URL/percorsi/chiavi col prefisso (`Compare.normalizePairs`) e salta transient/cron/rewrite_rules/session_tokens: se aggiungi eccezioni, aggiornale nel ponte (`trv_db_tables`).
+- **Lingue** IT/EN come Crocini: chiavi = testi italiani. Nuova stringa → aggiungerla in `Scripts/strings.py` e lanciarlo (genera entrambi i .strings e fallisce se manca qualcosa). Le interpolazioni SwiftUI con espressioni complesse vanno spezzate in variabili d'appoggio.
+- Font Bricolage Grotesque via `Theme.font(...)`; colori: locale `Theme.local` (blu), server `Theme.remote` (vino), accento `Theme.amber`.
+- Nel Bash tool `cp`/`rm` sono alias verbosi/interattivi: usare `/bin/cp -f`.
+- Bundle id `com.federicomancinelli.mirrorpress`. Repository pubblico `friconelli/mirrorpress`: release con `Scripts/release.sh`.
+- **Errori**: usare `fail(messaggio, hint:, detail:)` (`MirrorpressError`), il Log mostra suggerimento e dettagli tecnici. Mai mettere password nei dettagli: `Transport.ftpDialogue` oscura `PASS`.
+- **Sfoglia…** (`RemoteBrowser.swift`) usa `Transport.entries(in:)`/`parseListing` (formati Unix e IIS); `findWordPress` cerca `wp-config.php` fino a 2-3 livelli.
