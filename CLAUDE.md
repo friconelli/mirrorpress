@@ -18,3 +18,5 @@ App macOS SwiftUI (SwiftPM, nessuna dipendenza) per sincronizzare siti WordPress
 - **FTP con TLS: sempre `--tls-max 1.2`** (Aruba tronca a 0 byte gli upload TLS 1.3 sopra ~8 KB, verificato il 18/11/2026 su 16noni). Porta 990 = FTPS implicito (`ftps://`).
 - Il ponte remoto verifica SEMPRE il certificato HTTPS (`allowInvalidCertificates` vale solo per l'FTP) e rifiuta indirizzi http (salvo localhost).
 - Le schermate con `--snapshot` escono con `NSApp.terminate` così il delegate toglie i ponti; se si interrompe l'app a forza, il ponte resta sul server fino alla scadenza.
+- **UI**: la scheda principale è `SyncView` (Push/Pull per area e ad albero, regole in `SyncRules.swift`, testate in CoreTests); il mirroring guidato è `GuidedMirror.swift` (gruppi di tabelle in `GuidedItem.dbGroups`). La vecchia tabella dei file (FilesView) non c'è più.
+- Chiusura: `applicationShouldTerminate` stacca i ponti e manda `selfdestruct` fuori dal main thread, aspettando al massimo 6 s (mai `terminateLater`: si bloccava). Prove: `--guided push|pull [review]` apre il mirroring guidato; con un foglio aperto l'app non esce da sola dopo `--snapshot` (chiuderla con kill).

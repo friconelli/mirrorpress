@@ -115,7 +115,7 @@ enum Analysis {
             if let h = remote.wpHomeConstant { add(.info, A_WP, L("WP_HOME è fisso nel wp-config del server (%@)", h), L("siteurl/home del database vengono ignorati lì.")) }
             if local.multisite || remote.multisite { add(.warning, A_WP, L("Multisito: il trasferimento del database va fatto con cautela"), L("Gli indirizzi dei sottositi stanno anche nelle tabelle wp_blogs e wp_site.")) }
             if let su = remote.siteURL, !profile.remoteURL.isEmpty, normalizedURL(su) != normalizedURL(profile.remoteURL) {
-                add(.warning, A_WP, L("Indirizzo del sito sul server diverso dal profilo"), L("Nel database: %@ — nel profilo: %@. Il mirrorpress del database userà quello del profilo.", su, profile.remoteURL))
+                add(.warning, A_WP, L("Indirizzo del sito sul server diverso dal profilo"), L("Nel database: %@ — nel profilo: %@. Il trasferimento del database userà quello del profilo.", su, profile.remoteURL))
             }
             if let su = remote.siteURL, su.hasPrefix("http://"), profile.remoteURL.hasPrefix("https://") {
                 add(.warning, A_WP, L("Il server ha siteurl in http mentre il sito è in https"), L("Contenuto misto e redirect: il trasferimento del database lo corregge."))
@@ -171,7 +171,7 @@ enum Analysis {
         }
         let bad = local.collations.keys.filter { $0.contains("0900") }
         if !bad.isEmpty, let r = remote.dbServer, Version.dbFlavor(r) == "MariaDB" || Version.compare(r, "8.0") == .orderedAscending {
-            add(.info, A_DB, L("Tabelle locali con collation MySQL 8 (%@)", bad.joined(separator: ", ")), L("Il server non le conosce: vengono convertite in utf8mb4_unicode_520_ci al momento del mirrorpress."))
+            add(.info, A_DB, L("Tabelle locali con collation MySQL 8 (%@)", bad.joined(separator: ", ")), L("Il server non le conosce: vengono convertite in utf8mb4_unicode_520_ci al momento del trasferimento."))
         }
         if !local.dbPrefix.isEmpty, !remote.dbPrefix.isEmpty, local.dbPrefix != remote.dbPrefix {
             add(.info, A_DB, L("Prefisso tabelle diverso: locale %@, server %@", local.dbPrefix, remote.dbPrefix), L("Gestito in automatico (anche ruoli e permessi utente)."))
@@ -195,7 +195,7 @@ enum Analysis {
             add(.warning, A_DB, L("Tabella %@: %d righe solo sul server", t.key, t.rowsOnlyRemote), L("Esempi: ordini, iscrizioni, messaggi dei moduli. Inviare il database le cancellerebbe."))
         }
         for t in tables where t.status == .onlyRemote {
-            add(.info, A_DB, L("Tabella solo sul server: %@", t.key), L("Non viene toccata dal mirrorpress del database."))
+            add(.info, A_DB, L("Tabella solo sul server: %@", t.key), L("Non viene toccata dal trasferimento del database."))
         }
 
         // File

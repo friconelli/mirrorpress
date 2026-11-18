@@ -36,6 +36,12 @@ MIRRORPRESS_ROOT=$SRC run db_dump <<<"$MAP" > "$W/dump.sql.gz"
 gunzip -c "$W/dump.sql.gz" | tail -1 | grep -q MIRRORPRESS-END || fail "dump troncato"
 ok "dump $(du -h "$W/dump.sql.gz" | cut -f1)"
 
+# Dump parziale: con una mappa di due tabelle escono solo quelle due (Push di una parte del database).
+PART="$(py "import json,sys;m=json.loads(sys.argv[1])['map'];k=[x for x in m if x.endswith(('posts','options'))][:2];print(json.dumps({'map':{x:m[x] for x in k}}))" "$MAP")"
+NCREATE="$(MIRRORPRESS_ROOT=$SRC run db_dump <<<"$PART" | gunzip -c | grep -c '^CREATE TABLE')"
+[[ "$NCREATE" == "2" ]] || fail "dump parziale: $NCREATE tabelle invece di 2"
+ok "dump parziale: solo le tabelle scelte"
+
 mkdir -p "$W/remote"
 export MIRRORPRESS_ROOT="$W/remote"
 R="$({ echo "J {\"guard\":\"trvtmp_\",\"db\":$DBO}"; cat "$W/dump.sql.gz"; } | run db_import)"

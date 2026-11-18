@@ -806,8 +806,15 @@ function trv_dump($out, $tables, $map) {
 
 function trv_dump_tables_and_map($req) {
     $all = trv_base_tables();
-    $tables = isset($req['tables']) && $req['tables'] ? array_values(array_intersect((array)$req['tables'], $all)) : $all;
     $map = isset($req['map']) && is_array($req['map']) ? $req['map'] : array();
+    if (isset($req['tables']) && $req['tables']) {
+        $tables = array_values(array_intersect((array)$req['tables'], $all));
+    } elseif ($map) {
+        // Con una mappa si esportano SOLO le tabelle mappate (invio di una parte del database).
+        $tables = array_values(array_intersect(array_keys($map), $all));
+    } else {
+        $tables = $all;
+    }
     return array($tables, $map);
 }
 

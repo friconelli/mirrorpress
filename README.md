@@ -26,6 +26,19 @@ Non serve per i progetti che si pubblicano con Vercel, Netlify o una pipeline (G
 
 Password FTP/SFTP, HTTP e database nel Portachiavi. Le credenziali FTP passano a `curl` in un `.netrc` temporaneo, quella SFTP via `SSH_ASKPASS`: mai sulla riga di comando. Usa solo strumenti di macOS (`curl`, `sftp`) più il PHP di MAMP (o Homebrew; percorso configurabile nelle Impostazioni).
 
+## Sincronizza (Push ↑ / Pull ↓)
+
+La scheda principale. **Pull ↓** copia dal server al Mac, **Push ↑** dal Mac al server; niente viene mai cancellato (i file solo dall'altra parte restano), prima di sovrascrivere si fa un backup.
+
+- **Database** in alto, con quante tabelle sono diverse e quante righe si perderebbero (es. iscrizioni arrivate online).
+- **File divisi per area** con la regola di WordPress (`SyncRules.swift`): *Tema e plugin* (di solito Push), *Media caricati* (di solito Pull), *WordPress core* (meglio aggiornarlo dal pannello), *Altri file*, *Cache e file generati* (non servono, si rigenerano), *Da non sincronizzare* (wp-config.php, .htaccess, .user.ini, robots.txt, advanced-cache/object-cache/db.php, mu-plugin dell'hosting, dump e archivi: mai in blocco, con il motivo).
+- Ogni area si apre ad **albero di cartelle**; ogni cartella e ogni file ha i suoi pulsanti ↓ ↑ con il numero di file. Conferma in parole semplici: quanti nuovi, quanti sostituiti, quali più recenti dall'altra parte.
+- «Cosa non sincronizzare con WordPress» spiega le regole.
+
+## Mirroring guidato
+
+Tre passi: **direzione** (Pubblica sul server / Aggiorna il Mac) → **cosa portare**, per importanza: *essenziale* tema attivo (e genitore) e contenuti (posts, postmeta, termini, menu), *consigliato* impostazioni (options: personalizzazioni del tema, widget, menu), *facoltativo* file dei plugin (basta che le versioni siano compatibili: mostra quelle diverse), media, utenti, commenti, tabelle dei plugin → **riepilogo** con le righe che si perderebbero (da confermare) → esecuzione: prima i file, poi il database in un solo passaggio (un backup, uno scambio atomico), poi nuova analisi.
+
 ## Log e diagnosi
 
 La scheda **Log** registra ogni passo. Ogni errore dice cosa è successo, cosa fare (💡) e ha i **dettagli tecnici** espandibili: operazione, connessione (utente@server:porta, cartella), dialogo FTP col server (password oscurata), indirizzo del ponte, codice HTTP, intestazioni dell'hosting (WAF, cache), inizio della risposta. «Copia log» copia tutto come testo. Prima di installare il ponte l'app controlla che la cartella remota contenga `wp-config.php` e, se non la trova, cerca WordPress nelle cartelle vicine e le suggerisce; dopo il caricamento verifica la dimensione del file (antivirus degli hosting che lo svuotano o lo tolgono). Il ponte, in caso di errore fatale PHP, risponde con un JSON che lo spiega invece di una pagina vuota.

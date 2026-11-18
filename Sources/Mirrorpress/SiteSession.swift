@@ -280,6 +280,15 @@ final class SiteSession: ObservableObject {
         }
     }
 
+    /// Alla chiusura dell'app: consegna il ponte attivo (se c'è) perché si cancelli, e azzera lo stato.
+    func detachBridgeForQuit() -> RemoteBridge? {
+        discardManualFile()
+        guard let remote, bridgeInstalled else { return nil }
+        bridgeInstalled = false
+        self.remote = nil
+        return remote
+    }
+
     /// Toglie il ponte dal server (si cancella da solo; se non riesce, via FTP/SFTP).
     func removeBridge() async {
         guard let remote, bridgeInstalled else { return }

@@ -153,4 +153,38 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(w.map(\.name), ["public_html", "index.php"])
         XCTAssertEqual(w[1].size, 1234)
     }
+
+    func testSyncRulesAreas() {
+        XCTAssertEqual(SyncRules.area("wp-config.php"), .protected)
+        XCTAssertEqual(SyncRules.area(".htaccess"), .protected)
+        XCTAssertEqual(SyncRules.area("wp-content/object-cache.php"), .protected)
+        XCTAssertEqual(SyncRules.area("wp-content/mu-plugins/wpengine-common/plugin.php"), .protected)
+        XCTAssertEqual(SyncRules.area("wp-content/uploads/backup-2024.zip"), .protected)
+        XCTAssertEqual(SyncRules.area("wp-content/uploads/elementor/css/post-12.css"), .generated)
+        XCTAssertEqual(SyncRules.area("wp-content/debug.log"), .protected)
+        XCTAssertEqual(SyncRules.area("wp-content/uploads/2024/05/foto.jpg"), .media)
+        XCTAssertEqual(SyncRules.area("wp-content/themes/16noni/style.css"), .code)
+        XCTAssertEqual(SyncRules.area("wp-content/plugins/acf/acf.php"), .code)
+        XCTAssertEqual(SyncRules.area("wp-includes/version.php"), .core)
+        XCTAssertEqual(SyncRules.area("wp-login.php"), .core)
+        XCTAssertEqual(SyncRules.area("google1234.html"), .other)
+    }
+
+    func testSyncTreeCountsAndCompaction() {
+        let e = FileEntry(size: 1, mtime: 0)
+        let files = [
+            FileDiff(path: "wp-content/themes/t/style.css", local: e, remote: e, status: .changed, sensitive: false),
+            FileDiff(path: "wp-content/themes/t/inc/a.php", local: e, remote: nil, status: .onlyLocal, sensitive: false),
+            FileDiff(path: "wp-content/plugins/p/p.php", local: nil, remote: e, status: .onlyRemote, sensitive: false),
+        ]
+        XCTAssertEqual(SyncTree.commonFolder(files), "wp-content/")
+        let top = SyncTree.rows(files, expanded: [])
+        XCTAssertEqual(top.map(\.name), ["plugins/p", "themes/t"])
+        XCTAssertEqual(top[1].push.count, 2)
+        XCTAssertEqual(top[1].pull.count, 1)
+        XCTAssertEqual(top[0].push.count, 0)
+        let open = SyncTree.rows(files, expanded: ["wp-content/themes/t/"])
+        XCTAssertEqual(open.map(\.name), ["plugins/p", "themes/t", "inc", "style.css"])
+        XCTAssertEqual(open[2].depth, 1)
+    }
 }

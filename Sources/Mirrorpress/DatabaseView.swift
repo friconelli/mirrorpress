@@ -160,7 +160,7 @@ struct DatabaseView: View {
 
 private struct SideBox: Identifiable { let side: Side; var id: String { side.rawValue } }
 
-/// Conferma del mirrorpress del database: cosa succede, cosa si perde, quali indirizzi cambiano.
+/// Conferma del trasferimento del database: cosa succede, cosa si perde, quali indirizzi cambiano.
 struct DBConfirmSheet: View {
     @ObservedObject var session: SiteSession
     let target: Side

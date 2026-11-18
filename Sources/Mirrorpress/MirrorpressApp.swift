@@ -30,6 +30,8 @@ final class AppModel: ObservableObject {
 
     func existingSession(_ id: UUID) -> SiteSession? { sessions[id] }
 
+    func detachBridgesForQuit() -> [RemoteBridge] { sessions.values.compactMap { $0.detachBridgeForQuit() } }
+
     func save(_ site: SiteProfile) {
         store.upsert(site)
         sessions[site.id]?.profileChanged(site)
@@ -58,11 +60,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model else { return .terminateNow }
-        Task { @MainActor in
-            await model.removeAllBridges()
-            sender.reply(toApplicationShouldTerminate: true)
+        // I ponti si cancellano da soli su richiesta firmata. Le richieste partono fuori dal thread principale
+        // e si aspettano al massimo 6 secondi: la chiusura non resta mai appesa (il ponte comunque scade).
+        let bridges = MainActor.assumeIsolated { model.detachBridgesForQuit() }
+        guard !bridges.isEmpty else { return .terminateNow }
+        let done = DispatchSemaphore(value: 0)
+        Task.detached {
+            await withTaskGroup(of: Void.self) { group in
+                for b in bridges { group.addTask { _ = try? await b.call("selfdestruct", [:]) } }
+            }
+            done.signal()
         }
-        return .terminateLater
+        _ = done.wait(timeout: .now() + 6)
+        return .terminateNow
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

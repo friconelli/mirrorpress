@@ -2,12 +2,12 @@ import SwiftUI
 import AppKit
 
 enum DetailTab: String, CaseIterable, Identifiable {
-    case overview, files, database, backups, log
+    case sync, overview, database, backups, log
     var id: String { rawValue }
     var label: LocalizedStringKey {
         switch self {
-        case .overview: return "Panoramica"
-        case .files: return "File"
+        case .sync: return "Sincronizza"
+        case .overview: return "Controlli"
         case .database: return "Database"
         case .backups: return "Backup"
         case .log: return "Log"
@@ -15,8 +15,8 @@ enum DetailTab: String, CaseIterable, Identifiable {
     }
     var symbol: String {
         switch self {
+        case .sync: return "arrow.up.arrow.down"
         case .overview: return "stethoscope"
-        case .files: return "doc.on.doc"
         case .database: return "cylinder.split.1x2"
         case .backups: return "clock.arrow.circlepath"
         case .log: return "list.bullet.rectangle"
@@ -27,7 +27,7 @@ enum DetailTab: String, CaseIterable, Identifiable {
 struct SiteDetailView: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject var session: SiteSession
-    @State private var tab: DetailTab = .overview
+    @State private var tab: DetailTab = .sync
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,8 +44,8 @@ struct SiteDetailView: View {
 
             Group {
                 switch tab {
+                case .sync: SyncView(session: session) { tab = .database }
                 case .overview: OverviewView(session: session)
-                case .files: FilesView(session: session)
                 case .database: DatabaseView(session: session)
                 case .backups: BackupsView(session: session)
                 case .log: LogView(session: session)
@@ -178,8 +178,8 @@ struct TabStrip: View {
             let n = session.issues.count
             let worst = session.issues.contains { $0.severity == .error } ? Theme.danger : Theme.warn
             return n > 0 ? (n, worst) : nil
-        case .files:
-            let n = session.files.filter { $0.status != .same }.count
+        case .sync:
+            let n = session.files.filter { $0.status != .same }.count + session.tables.filter { $0.status != .same }.count
             return n > 0 ? (n, Theme.amber) : nil
         case .database:
             let n = session.tables.filter { $0.status != .same }.count

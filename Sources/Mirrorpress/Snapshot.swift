@@ -24,11 +24,14 @@ enum Snapshot {
         var delay = 2.0
         if let d = args.firstIndex(of: "--delay"), d + 1 < args.count, let v = Double(args[d + 1]) { delay = v }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            guard let view = NSApp.windows.first(where: { $0.isVisible })?.contentView,
+            // Se c'è un foglio aperto (es. mirroring guidato) fotografa quello.
+            let main = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil })
+            guard let view = (main?.attachedSheet ?? main)?.contentView,
                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { exit(2) }
+            defer { if let m = main, let sheet = m.attachedSheet { m.endSheet(sheet) } }
             view.cacheDisplay(in: view.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
-            NSApp.terminate(nil)   // passa dal delegate: toglie i ponti dai server prima di uscire
+            NSApp.perform(#selector(NSApplication.terminate(_:)), with: nil, afterDelay: 0)   // fuori dalla coda principale: passa dal delegate: toglie i ponti dai server prima di uscire
         }
     }
 }

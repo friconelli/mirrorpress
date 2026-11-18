@@ -1,6 +1,6 @@
 import Foundation
 
-/// Un lato del mirrorpress: parla con il ponte PHP (in locale da riga di comando, sul server via HTTPS).
+/// Un lato del trasferimento: parla con il ponte PHP (in locale da riga di comando, sul server via HTTPS).
 protocol BridgeEndpoint: AnyObject, Sendable {
     var side: Side { get }
     /// Richiesta JSON → risposta JSON (lancia un errore se il ponte risponde ok:false).
