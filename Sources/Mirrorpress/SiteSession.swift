@@ -26,6 +26,10 @@ final class SiteSession: ObservableObject {
     @Published var manualBridgeFile: URL?
     @Published var manualBridgeExpires: Date?
     @Published var lastError: String?
+    /// Ultima diagnosi del sito per lato (azione "diagnose" del ponte).
+    @Published var diagnosis: [Side: Diagnosis] = [:]
+    /// Plugin spenti da Mirrorpress in questa sessione (per offrire «Riattiva»).
+    @Published var disabledExtensions: [Side: Set<Diagnosis.Culprit>] = [:]
 
     private var remote: RemoteBridge?
     /// Solo per i test: installa il ponte senza FTP/SFTP (file temporaneo, nome).

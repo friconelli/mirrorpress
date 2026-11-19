@@ -119,6 +119,7 @@ struct SiteRow: View {
                     .font(Theme.font(.caption)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
+            HealthDot(site: site)
             if let s = model.existingSession(site.id) { SiteRowStatus(session: s) }
         }
         .padding(.vertical, 3)

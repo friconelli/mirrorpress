@@ -4,6 +4,7 @@ import AppKit
 @MainActor
 final class AppModel: ObservableObject {
     let store = SiteStore()
+    let health = HealthMonitor()
     @Published var selection: UUID?
     @Published var editing: SiteProfile?
     private var sessions: [UUID: SiteSession] = [:]
@@ -36,6 +37,7 @@ final class AppModel: ObservableObject {
         store.upsert(site)
         sessions[site.id]?.profileChanged(site)
         selection = site.id
+        Task { await health.check(site) }
         objectWillChange.send()
     }
 
@@ -95,9 +97,12 @@ struct MirrorpressApp: App {
                 .environmentObject(model)
                 .environmentObject(model.store)
                 .environmentObject(updater)
+                .environmentObject(model.health)
                 .frame(minWidth: 1020, minHeight: 680)
                 .onAppear {
                     delegate.model = model
+                    let store = model.store
+                    model.health.start { store.sites }
                     Snapshot.scheduleIfRequested()
                     Snapshot.prepareIfRequested()
                     if !CommandLine.arguments.contains("--snapshot") { updater.startAutomaticChecks() }

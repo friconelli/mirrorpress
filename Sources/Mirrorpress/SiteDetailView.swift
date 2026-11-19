@@ -36,6 +36,7 @@ struct SiteDetailView: View {
             if !session.site.vpn.trimmingCharacters(in: .whitespaces).isEmpty && !session.bridgeInstalled {
                 VPNBanner(name: session.site.vpn)
             }
+            HealthBanner(session: session)
             if let file = session.manualBridgeFile { ManualBridgeBanner(session: session, file: file) }
             if let err = session.lastError, session.busy == nil, session.manualBridgeFile == nil {
                 let last = session.log.last { $0.kind == .error }
@@ -58,6 +59,10 @@ struct SiteDetailView: View {
         }
         .background(Theme.canvas)
         .font(Theme.font(.body))
+        .onChange(of: session.analyzedAt) { _ in
+            // Dopo l'analisi l'indirizzo locale vero (siteurl del database) è noto: il controllo di salute usa quello.
+            if !session.localURL.isEmpty { model.health.knownLocalURL[session.site.id] = session.localURL }
+        }
         .onAppear {
             if CommandLine.arguments.contains("--analyze"), session.analyzedAt == nil, session.busy == nil {
                 Task {

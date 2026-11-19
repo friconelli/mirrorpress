@@ -28,7 +28,7 @@ register_shutdown_function('trv_on_shutdown');
 function trv_on_shutdown() {
     $e = error_get_last();
     if (!$e || !in_array($e['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR), true)) return;
-    if ($GLOBALS['trv_sent']) return;
+    if ($GLOBALS['trv_sent'] || !empty($GLOBALS['trv_diag_on'])) return; // la diagnosi ha il suo gestore
     if (!TRV_CLI && !headers_sent()) { http_response_code(200); header('Content-Type: application/json; charset=utf-8'); }
     echo json_encode(array(
         'ok' => false,
@@ -108,6 +108,23 @@ try {
         case 'fetch':        trv_fetch($req); break;
         case 'restore':      trv_json(trv_restore($req)); break;
         case 'cleanup':      trv_json(trv_cleanup($req)); break;
+        case 'diagnose':
+            // WordPress va caricato nello scope globale (wp-config definisce variabili globali): per questo è qui e non in una funzione.
+            $GLOBALS['trv_diag'] = trv_diagnose($req);
+            if (!empty($req['boot']) && is_file(TRV_ROOT . '/wp-load.php')) {
+                trv_diag_boot_prepare();
+                try {
+                    require_once TRV_ROOT . '/wp-load.php';
+                    trv_diag_boot_result(null);
+                } catch (Exception $e) {
+                    trv_diag_boot_result($e);
+                } catch (Error $e) {
+                    trv_diag_boot_result($e);
+                }
+            }
+            trv_json($GLOBALS['trv_diag']);
+            break;
+        case 'toggle_ext':   trv_json(trv_toggle_ext($req)); break;
         case 'selfdestruct': trv_json(array('ok' => TRV_CLI ? true : @unlink(__FILE__))); break;
         default: trv_json(array('ok' => false, 'error' => 'azione sconosciuta: ' . $action));
     }
@@ -1219,6 +1236,145 @@ function trv_restore($req) {
         if (@copy($dir . '/files/' . $rel, $abs)) $done++;
     }
     return array('restored' => 'files', 'files' => $done, 'removed' => count($trash['moved']));
+}
+
+// ---------------------------------------------------------------- diagnosi del sito
+
+/** Ultimi errori PHP dai log, .maintenance, database: tutto senza caricare WordPress. */
+function trv_diagnose($req) {
+    $out = array('php' => PHP_VERSION, 'maintenance' => null, 'db' => true, 'logs' => array(), 'boot' => null);
+    if (is_file(TRV_ROOT . '/.maintenance')) $out['maintenance'] = array('age' => time() - (int)@filemtime(TRV_ROOT . '/.maintenance'));
+    try { trv_db(); } catch (Exception $e) { $out['db'] = false; $out['db_error'] = $e->getMessage(); }
+
+    $cfg = trv_wpconfig();
+    $cands = array('wp-content/debug.log', 'error_log', 'php_errorlog', 'php_error.log', 'wp-admin/error_log', 'wp-content/error_log');
+    $abs = array();
+    foreach ($cands as $c) $abs[] = TRV_ROOT . '/' . $c;
+    if (isset($cfg['WP_DEBUG_LOG']) && is_string($cfg['WP_DEBUG_LOG']) && strpos($cfg['WP_DEBUG_LOG'], '/') !== false) $abs[] = $cfg['WP_DEBUG_LOG'];
+    $ini = (string)ini_get('error_log');
+    if ($ini !== '' && $ini !== 'syslog') $abs[] = $ini;
+    $seen = array();
+    foreach ($abs as $f) {
+        $real = @realpath($f);
+        if (!$real || isset($seen[$real]) || !@is_file($real) || !@is_readable($real)) continue;
+        $seen[$real] = true;
+        $size = (int)@filesize($real);
+        $fh = @fopen($real, 'rb');
+        if (!$fh) continue;
+        $tail = 262144;
+        if ($size > $tail) fseek($fh, $size - $tail);
+        $data = (string)fread($fh, $tail);
+        fclose($fh);
+        $errors = array();
+        // Un log fuori dalla cartella del sito può essere condiviso con altri siti: solo le righe che parlano di questo.
+        $shared = strpos($real, TRV_ROOT . '/') !== 0;
+        foreach (preg_split('~\r?\n~', $data) as $line) {
+            if ($shared && strpos($line, TRV_ROOT . '/') === false) continue;
+            if (preg_match('~PHP (Fatal error|Parse error)|Uncaught |Allowed memory size|Maximum execution time~i', $line)) {
+                $errors[] = substr($line, 0, 700);
+            }
+        }
+        $rel = strpos($real, TRV_ROOT . '/') === 0 ? substr($real, strlen(TRV_ROOT) + 1) : $real;
+        $out['logs'][] = array('path' => $rel, 'size' => $size, 'mtime' => (int)@filemtime($real), 'fatal' => count($errors),
+            'last' => array_slice($errors, -6));
+    }
+    return $out;
+}
+
+/**
+ * Spegne (o riaccende) un plugin rinominandone la cartella/il file: "slug" → "slug.off-mirrorpress".
+ * Non cancella nulla; WordPress disattiva da solo un plugin che non trova più.
+ */
+function trv_toggle_ext($req) {
+    $kind = isset($req['kind']) ? (string)$req['kind'] : '';
+    $slug = isset($req['slug']) ? (string)$req['slug'] : '';
+    $on = !empty($req['on']);
+    if (!in_array($kind, array('plugins', 'mu-plugins'), true) || !preg_match('~^[\w.-]+$~', $slug) || $slug === '.' || $slug === '..') trv_fail('plugin non valido');
+    $base = TRV_ROOT . '/wp-content/' . $kind . '/';
+    $plain = preg_replace('~\.off-mirrorpress$~', '', $slug);
+    $off = $plain . '.off-mirrorpress';
+    $from = $on ? $off : $plain;
+    $to = $on ? $plain : $off;
+    if (!file_exists($base . $from)) trv_fail('non trovato: wp-content/' . $kind . '/' . $from);
+    if (file_exists($base . $to)) trv_fail('esiste già: wp-content/' . $kind . '/' . $to);
+    if (!@rename($base . $from, $base . $to)) trv_fail('impossibile rinominare wp-content/' . $kind . '/' . $from . ' (permessi?)');
+    return array('from' => 'wp-content/' . $kind . '/' . $from, 'to' => 'wp-content/' . $kind . '/' . $to);
+}
+
+/** Prepara il caricamento di WordPress: niente gestore degli errori di WP, niente cron, output trattenuto. */
+function trv_diag_boot_prepare() {
+    $GLOBALS['trv_diag_on'] = true;
+    $GLOBALS['trv_diag_t'] = microtime(true);
+    register_shutdown_function('trv_diag_shutdown');
+    if (!defined('WP_DISABLE_FATAL_ERROR_HANDLER')) define('WP_DISABLE_FATAL_ERROR_HANDLER', true);
+    if (!defined('DISABLE_WP_CRON')) define('DISABLE_WP_CRON', true);
+    if (!defined('WP_USE_THEMES')) define('WP_USE_THEMES', false);
+    if (TRV_CLI) {
+        if (!isset($_SERVER['HTTP_HOST'])) $_SERVER['HTTP_HOST'] = 'localhost';
+        if (!isset($_SERVER['REQUEST_URI'])) $_SERVER['REQUEST_URI'] = '/';
+    }
+    ob_start();
+}
+
+/** Testo leggibile di una pagina HTML (senza head, stili e script), al massimo 1500 caratteri. */
+function trv_diag_text($html) {
+    $t = preg_replace('~<(head|style|script)\b.*?</\1>~is', ' ', (string)$html);
+    $t = html_entity_decode(strip_tags($t), ENT_QUOTES, 'UTF-8');
+    return substr(trim(preg_replace('~\s+~u', ' ', $t)), 0, 1500);
+}
+
+function trv_diag_rel($file) {
+    $file = str_replace('\\', '/', (string)$file);
+    return strpos($file, TRV_ROOT . '/') === 0 ? substr($file, strlen(TRV_ROOT) + 1) : $file;
+}
+
+/** WordPress caricato (o eccezione non gestita): annota l'esito. */
+function trv_diag_boot_result($e) {
+    $buf = '';
+    while (ob_get_level()) $buf = ob_get_clean() . $buf;
+    $ms = (int)round((microtime(true) - $GLOBALS['trv_diag_t']) * 1000);
+    if ($e) {
+        $GLOBALS['trv_diag']['boot'] = array('result' => 'fatal', 'message' => get_class($e) . ': ' . $e->getMessage(),
+            'file' => trv_diag_rel($e->getFile()), 'line' => $e->getLine(), 'ms' => $ms);
+    } else {
+        $b = array('result' => 'ok', 'ms' => $ms);
+        if (function_exists('get_option')) {
+            $b['theme'] = (string)get_option('stylesheet');
+            $b['plugins'] = count((array)get_option('active_plugins'));
+        }
+        if (trv_diag_text($buf) !== '') $b['output'] = trv_diag_text($buf);
+        $GLOBALS['trv_diag']['boot'] = $b;
+    }
+    trv_diag_reset_headers();
+}
+
+/** Toglie redirect e intestazioni messe da WordPress/plugin: la risposta è il JSON del ponte. */
+function trv_diag_reset_headers() {
+    if (TRV_CLI || headers_sent()) return;
+    header_remove();
+    header('HTTP/1.1 200 OK', true, 200);
+    http_response_code(200);
+    header('Cache-Control: no-store');
+}
+
+/** WordPress si è fermato da solo (exit/die, wp_die) o con un errore fatale: risponde comunque con il JSON della diagnosi. */
+function trv_diag_shutdown() {
+    if ($GLOBALS['trv_sent']) exit; // risposta già data: niente azioni "shutdown" di WordPress dopo il JSON
+    $buf = '';
+    while (ob_get_level()) $buf = ob_get_clean() . $buf;
+    $redirect = '';
+    foreach (headers_list() as $h) { if (stripos($h, 'Location:') === 0) $redirect = trim(substr($h, 9)); }
+    trv_diag_reset_headers();
+    $e = error_get_last();
+    $ms = (int)round((microtime(true) - $GLOBALS['trv_diag_t']) * 1000);
+    if ($e && in_array($e['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR), true)) {
+        $GLOBALS['trv_diag']['boot'] = array('result' => 'fatal', 'message' => $e['message'], 'file' => trv_diag_rel($e['file']), 'line' => $e['line'], 'ms' => $ms);
+    } else {
+        $GLOBALS['trv_diag']['boot'] = array('result' => 'exit', 'ms' => $ms,
+            'output' => trv_diag_text($buf), 'redirect' => $redirect);
+    }
+    trv_json($GLOBALS['trv_diag']);
+    exit;
 }
 
 /** Pulizia della sessione: staging e tabelle temporanee. Non tocca backup né _da_eliminare. */

@@ -257,3 +257,67 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(again.vpn, "FortiClient")
     }
 }
+
+final class HealthTests: XCTestCase {
+    private func snap(_ status: Int, _ body: String, _ headers: [String: String] = [:]) -> HTTPSnapshot {
+        HTTPSnapshot(status: status, headers: headers, body: body)
+    }
+    private let wpDie = #"<html><head><title>WordPress &rsaquo; Errore</title><style>body{}</style></head><body id="error-page"><div class="wp-die-message"><p>Si &egrave; verificato un errore critico in questo sito.</p></div></body></html>"#
+
+    func testCriticalError() {
+        let r = SiteHealth.classify(snap(500, wpDie), url: "https://x.it/", side: .remote)
+        XCTAssertEqual(r.kind, .critical)
+        XCTAssertEqual(r.level, .error)
+        XCTAssertFalse(r.steps.isEmpty)
+        let en = SiteHealth.classify(snap(500, "<body>There has been a critical error on this website.</body>"), url: "https://x.it/", side: .remote)
+        XCTAssertEqual(en.kind, .critical)
+    }
+
+    func testDatabaseAndMaintenance() {
+        XCTAssertEqual(SiteHealth.classify(snap(500, "<h1>Error establishing a database connection</h1>"), url: "u", side: .remote).kind, .database)
+        XCTAssertEqual(SiteHealth.classify(snap(503, "Briefly unavailable for scheduled maintenance. Check back in a minute."), url: "u", side: .remote).kind, .maintenanceStuck)
+        let soon = SiteHealth.classify(snap(503, "<body><h1>Il sito è in costruzione</h1></body>", ["retry-after": "86400"]), url: "u", side: .remote)
+        XCTAssertEqual(soon.kind, .comingSoon)
+        XCTAssertEqual(soon.level, .notice)
+        XCTAssertEqual(SiteHealth.classify(snap(503, "<body>Service Unavailable</body>"), url: "u", side: .remote).level, .error)
+    }
+
+    func testVisiblePHPErrorsAndBlankPage() {
+        let fatal = SiteHealth.classify(snap(200, "<br />\n<b>Fatal error</b>:  Uncaught Error: Call to undefined function x() in /web/wp-content/plugins/foo/foo.php:12"), url: "u", side: .remote)
+        XCTAssertEqual(fatal.kind, .phpVisible)
+        XCTAssertTrue(fatal.detail.contains("plugins/foo"))
+        let warn = SiteHealth.classify(snap(200, "<html><body><b>Warning</b>: Undefined variable $a in /web/wp-content/themes/t/header.php on line 3<h1>Benvenuti nel sito</h1></body></html>"), url: "u", side: .remote)
+        XCTAssertEqual(warn.kind, .phpWarnings)
+        XCTAssertEqual(SiteHealth.classify(snap(200, "<html><body>  </body></html>"), url: "u", side: .remote).kind, .blank)
+        XCTAssertEqual(SiteHealth.classify(snap(200, "<html><body><h1>Villa</h1><p>Suite tra gli ulivi ad Assisi</p></body></html>"), url: "u", side: .remote).level, .ok)
+    }
+
+    func testNetworkErrors() {
+        var s = HTTPSnapshot(); s.errorCode = NSURLErrorCannotFindHost
+        XCTAssertEqual(SiteHealth.classify(s, url: "u", side: .remote).kind, .dns)
+        s.errorCode = NSURLErrorHTTPTooManyRedirects
+        XCTAssertEqual(SiteHealth.classify(s, url: "u", side: .remote).kind, .redirectLoop)
+        s.errorCode = NSURLErrorCannotConnectToHost
+        XCTAssertEqual(SiteHealth.classify(s, url: "u", side: .local).level, .notice)   // MAMP spento: non è un guasto del sito
+    }
+
+    func testDiagnosisCulprit() {
+        let boot = JSONValue(any: ["boot": ["result": "fatal", "message": "Error: Call to undefined function nope()", "file": "wp-content/plugins/rotto/rotto.php", "line": 5],
+                              "db": true, "logs": [], "php": "8.2.1"] as [String: Any])
+        let d = Diagnosis(side: .remote, raw: boot)
+        XCTAssertEqual(d.culprit, Diagnosis.Culprit(kind: "plugins", slug: "rotto"))
+        XCTAssertTrue(d.verdict.title.contains("rotto"))
+        let fromLog = Diagnosis(side: .remote, raw: JSONValue(any: ["boot": ["result": "ok"], "db": true, "logs": [["path": "error_log", "fatal": 1, "mtime": 0,
+            "last": ["[19-Nov-2026 10:00:00 UTC] PHP Fatal error:  Uncaught TypeError in /web/htdocs/x/wp-content/themes/villa/functions.php:10"]]]] as [String: Any]))
+        XCTAssertEqual(fromLog.culprit?.kind, "themes")
+        let db = Diagnosis(side: .remote, raw: JSONValue(any: ["db": false, "db_error": "connessione al database fallita: Access denied for user", "logs": []] as [String: Any]))
+        XCTAssertTrue(db.verdict.steps.first?.contains("password") ?? false)
+    }
+
+    func testLocalAddressFromMAMP() {
+        var p = SiteProfile(); p.localPath = "/Applications/MAMP/htdocs/villapatrizia"
+        XCTAssertEqual(SiteHealth.localAddress(p), "http://localhost:8888/villapatrizia")
+        p.localURL = "http://villa.test"
+        XCTAssertEqual(SiteHealth.localAddress(p), "http://villa.test")
+    }
+}
