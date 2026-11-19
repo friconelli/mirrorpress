@@ -873,6 +873,8 @@ EN = {
 "È finita la memoria: alza WP_MEMORY_LIMIT nel wp-config (per esempio a 256M) o il limite di memoria PHP nel pannello.": "Out of memory: raise WP_MEMORY_LIMIT in wp-config (for example to 256M) or the PHP memory limit in the panel.",
 "È lì da %@: WordPress mostra la pagina di manutenzione a tutti.": "It has been there for %@: WordPress shows the maintenance page to everyone.",
 "È protetto da una password del server: normale per uno staging.": "It's protected by a server password: normal for staging.",
+"Mostra la cartella nel Finder": "Show the folder in Finder",
+"Apri %@ nel browser": "Open %@ in the browser",
 }
 
 # Testi che non sono chiavi (simboli SF, percorsi costruiti, verbatim).

@@ -85,7 +85,7 @@ struct SiteDetailView: View {
                     if session.bridgeInstalled { BridgePill(session: session) }
                 }
                 HStack(spacing: 8) {
-                    endpoint(.local, session.localURL.isEmpty ? session.site.localPath : session.localURL)
+                    endpoint(.local, localAddress.isEmpty ? session.site.localPath : localAddress)
                     PourArrow()
                     endpoint(.remote, session.site.remoteURL)
                     if let at = session.analyzedAt {
@@ -110,13 +110,21 @@ struct SiteDetailView: View {
         .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 8)
     }
 
+    private var localAddress: String { SiteHealth.localAddress(session.site, known: session.localURL) }
+
     private func endpoint(_ side: Side, _ text: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: side == .local ? "laptopcomputer" : "server.rack")
-            Text(text).lineLimit(1).truncationMode(.middle)
+        EndpointLink(side: side, text: text, target: endpointTarget(side, text))
+    }
+
+    /// Dove porta il clic: l'indirizzo del sito nel browser; in locale, se c'è solo il percorso, l'indirizzo MAMP dedotto o la cartella nel Finder.
+    private func endpointTarget(_ side: Side, _ text: String) -> URL? {
+        if text.hasPrefix("http"), let u = URL(string: text) { return u }
+        if side == .local {
+            let mamp = SiteHealth.localAddress(session.site, known: session.localURL)
+            if let u = URL(string: mamp), !mamp.isEmpty { return u }
+            if !session.site.localPath.isEmpty { return URL(fileURLWithPath: session.site.localPath, isDirectory: true) }
         }
-        .font(Theme.font(.callout, .medium))
-        .foregroundStyle(side == .local ? Theme.local : Theme.remote)
+        return nil
     }
 }
 
@@ -527,5 +535,32 @@ struct LogRow: View {
     }
     private var background: Color {
         switch line.kind { case .error: return Theme.danger.opacity(0.08); case .warning: return Theme.warn.opacity(0.08); default: return .clear }
+    }
+}
+
+/// Indirizzo nell'intestazione, cliccabile (sottolineato al passaggio del mouse).
+struct EndpointLink: View {
+    let side: Side
+    let text: String
+    let target: URL?
+    @State private var hovering = false
+    var body: some View {
+        let label = HStack(spacing: 5) {
+            Image(systemName: side == .local ? "laptopcomputer" : "server.rack")
+            Text(text).lineLimit(1).truncationMode(.middle).underline(hovering && target != nil)
+        }
+        .font(Theme.font(.callout, .medium))
+        .foregroundStyle(side == .local ? Theme.local : Theme.remote)
+        if let target {
+            Button { NSWorkspace.shared.open(target) } label: { label }
+                .buttonStyle(.plain)
+                .onHover { h in
+                    hovering = h
+                    if h { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                }
+                .help(target.isFileURL ? L("Mostra la cartella nel Finder") : L("Apri %@ nel browser", target.absoluteString))
+        } else {
+            label
+        }
     }
 }

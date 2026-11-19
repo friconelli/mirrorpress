@@ -973,3 +973,5 @@
 "È finita la memoria: alza WP_MEMORY_LIMIT nel wp-config (per esempio a 256M) o il limite di memoria PHP nel pannello." = "È finita la memoria: alza WP_MEMORY_LIMIT nel wp-config (per esempio a 256M) o il limite di memoria PHP nel pannello.";
 "È lì da %@: WordPress mostra la pagina di manutenzione a tutti." = "È lì da %@: WordPress mostra la pagina di manutenzione a tutti.";
 "È protetto da una password del server: normale per uno staging." = "È protetto da una password del server: normale per uno staging.";
+"Mostra la cartella nel Finder" = "Mostra la cartella nel Finder";
+"Apri %@ nel browser" = "Apri %@ nel browser";
