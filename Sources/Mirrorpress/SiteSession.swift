@@ -367,9 +367,9 @@ final class SiteSession: ObservableObject {
 
             // File
             status(L("Elenco i file…"))
-            let excludes = ExcludeMatcher(site.excludes)
+            let excludes = ExcludeMatcher(site.effectiveExcludes)
             let manifestFile = AppPaths.temp().appendingPathComponent("manifest")
-            async let remoteManifest: Void = remote.stream("manifest", ["exclude": site.excludes], to: manifestFile)
+            async let remoteManifest: Void = remote.stream("manifest", ["exclude": site.effectiveExcludes], to: manifestFile)
             let root = localRoot
             let localFiles = await Task.detached { Manifest.scanLocal(root: root, excludes: excludes) }.value
             try await remoteManifest

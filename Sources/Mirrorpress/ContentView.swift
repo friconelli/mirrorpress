@@ -320,6 +320,9 @@ struct SiteEditorView: View {
                                     .font(Theme.font(.caption)).foregroundStyle(.secondary)
                                 TextEditor(text: $excludesText).font(Theme.mono).frame(height: 140)
                                     .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.1)))
+                                Text(L("Esclusi sempre, in ogni sito: %@.", SiteProfile.alwaysExcluded.joined(separator: ", ")))
+                                    .font(Theme.font(.caption)).foregroundStyle(.secondary).textSelection(.enabled)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 HStack {
                                     Toggle("Confronta il contenuto dei file (MD5), non solo la dimensione", isOn: $site.compareContent)
                                     Spacer()

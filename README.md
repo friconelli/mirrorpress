@@ -12,7 +12,7 @@ Non serve per i progetti che si pubblicano con Vercel, Netlify o una pipeline (G
 
 ## Cosa confronta
 
-- **File**: solo in locale, solo sul server, diversi (dimensione, poi MD5 con cache sul server), uguali. File sensibili (`wp-config.php`, `.htaccess`, `.user.ini`, `robots.txt`…) e dump/archivi non vengono mai selezionati in automatico. Esclusioni modificabili per sito.
+- **File**: solo in locale, solo sul server, diversi (dimensione, poi MD5 con cache sul server), uguali. File sensibili (`wp-config.php`, `.htaccess`, `.user.ini`, `robots.txt`…) e dump/archivi non vengono mai selezionati in automatico. Esclusioni modificabili per sito, più quelle fisse degli strumenti di sviluppo (`node_modules`, `npm-cache`, `.git`, `.vscode`, cache di Sass/Parcel… in `SiteProfile.alwaysExcluded`), che valgono anche per i profili salvati prima; `vendor` no, perché serve ai plugin.
 - **Database**: tabella per tabella e riga per riga (fino a 50.000 righe per tabella), normalizzando indirizzi, percorsi e prefissi diversi; transient, cron e sessioni sono ignorati. Per le tabelle diverse mostra quali righe cambiano (titoli dei post, opzioni…).
 - **Problemi e incongruenze**: versioni di WordPress e PHP, plugin che richiedono un PHP più nuovo del server, plugin/temi solo da un lato o con versioni diverse, contenuti, commenti, utenti e righe (ordini, moduli) più recenti sul server che andrebbero persi, media caricati in produzione, PHP sospetti in `uploads`, maiuscole/minuscole (Mac vs Linux), collation MySQL 8 su MariaDB, prefissi diversi, `WP_DEBUG` a video, «scoraggia i motori di ricerca», siteurl http/https, spazio disco, cache, multisito, manutenzione.
 

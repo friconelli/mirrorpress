@@ -997,3 +997,4 @@
 "Tabelle del database, una per una" = "Tabelle del database, una per una";
 "Ultima operazione non riuscita" = "Ultima operazione non riuscita";
 "WordPress non trova la home (HTTP 404)" = "WordPress non trova la home (HTTP 404)";
+"Esclusi sempre, in ogni sito: %@." = "Esclusi sempre, in ogni sito: %@.";

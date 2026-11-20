@@ -52,12 +52,27 @@ struct SiteProfile: Codable, Identifiable, Hashable {
     var vpn = ""
 
     static let defaultExcludes = [
-        ".DS_Store", ".git", ".svn", ".idea", ".vscode", "node_modules", "Thumbs.db",
         "_da_eliminare", ".well-known", "cgi-bin", "error_log", "*.log",
         "wp-content/cache", "wp-content/upgrade", "wp-content/upgrade-temp-backup",
         "wp-content/ai1wm-backups", "wp-content/updraft", "wp-content/backups-dup-lite",
         "wp-content/wflogs", "wp-content/et-cache", "wp-content/litespeed",
     ]
+
+    /// Strumenti di sviluppo e cache del Mac: non servono al sito e non vanno mai sul server.
+    /// Valgono sempre, anche per i profili salvati prima (le loro esclusioni sono una copia di quelle di allora).
+    /// Non c'è `vendor`: le librerie Composer dei plugin servono al sito.
+    static let alwaysExcluded = [
+        "node_modules", "npm-cache", ".npm", "_cacache", ".yarn", ".pnpm-store", "bower_components",
+        ".git", ".svn", ".hg", ".github", ".gitlab", ".idea", ".vscode", ".claude", ".cursor",
+        ".sass-cache", ".parcel-cache", ".turbo", ".eslintcache", ".phpunit.result.cache", ".php-cs-fixer.cache",
+        ".DS_Store", "._*", "__MACOSX", "Thumbs.db", "desktop.ini", "*.swp",
+    ]
+
+    /// Esclusioni del profilo più quelle fisse.
+    var effectiveExcludes: [String] {
+        var seen = Set<String>()
+        return (excludes + Self.alwaysExcluded).filter { seen.insert($0).inserted }
+    }
 
     /// File da non sovrascrivere mai senza volerlo: mostrati nel confronto ma non selezionati.
     static let sensitiveFiles: Set<String> = [

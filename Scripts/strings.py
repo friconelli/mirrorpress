@@ -899,6 +899,7 @@ EN = {
 "Ultima operazione non riuscita": "Last operation failed",
 "WordPress non trova la home (HTTP 404)": "WordPress can't find the home page (HTTP 404)",
 "Registro": "Log", "Chiudi": "Close",
+"Esclusi sempre, in ogni sito: %@.": "Always excluded, on every site: %@.",
 }
 
 # Testi che non sono chiavi (simboli SF, percorsi costruiti, verbatim).

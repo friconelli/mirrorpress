@@ -292,6 +292,18 @@ final class HealthTests: XCTestCase {
         XCTAssertEqual(SiteHealth.classify(snap(200, "<html><body><h1>Villa</h1><p>Suite tra gli ulivi ad Assisi</p></body></html>"), url: "u", side: .remote).level, .ok)
     }
 
+    func testAlwaysExcluded() {
+        var site = SiteProfile()
+        site.excludes = ["wp-content/cache"]   // profilo vecchio, senza node_modules
+        let m = ExcludeMatcher(site.effectiveExcludes)
+        XCTAssertTrue(m.excludes("wp-content/themes/t/node_modules", name: "node_modules"))
+        XCTAssertTrue(m.excludes("npm-cache", name: "npm-cache"))
+        XCTAssertTrue(m.excludes("wp-content/plugins/p/.github", name: ".github"))
+        XCTAssertTrue(m.excludes("wp-content/cache", name: "cache"))
+        XCTAssertFalse(m.excludes("wp-content/plugins/p/vendor", name: "vendor"))
+        XCTAssertEqual(site.effectiveExcludes.count, Set(site.effectiveExcludes).count)
+    }
+
     func testNotFound() {
         let wp404 = #"<html><head><title>404</title><link href="/wtevent/wp-content/themes/t/style.css"></head><body>Pagina non trovata</body></html>"#
         let localWP = SiteHealth.classify(snap(404, wp404), url: "u", side: .local)
