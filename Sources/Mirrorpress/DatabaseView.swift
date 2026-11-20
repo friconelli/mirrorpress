@@ -21,7 +21,7 @@ struct DatabaseView: View {
             if session.analyzedAt == nil {
                 Text("Nessuna analisi ancora.").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if session.tables.isEmpty {
-                Text("Nessun database confrontato (sito senza database o non raggiungibile: vedi Panoramica).")
+                Text("Nessun database confrontato (sito senza database o non raggiungibile: vedi Controlli).")
                     .foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 HSplitView {
@@ -186,7 +186,7 @@ struct DBConfirmSheet: View {
                     .font(Theme.font(.title3, .heavy))
             }
             VStack(alignment: .leading, spacing: 6) {
-                step("1", toRemote ? L("Backup completo del database del server (resta sul server, scaricabile da «Backup»).") : L("Backup completo del database locale."))
+                step("1", toRemote ? L("Backup completo del database del server (resta sul server, scaricabile da Storico → Backup).") : L("Backup completo del database locale."))
                 step("2", L("Le tabelle vengono copiate con un nome temporaneo: il sito continua a funzionare."))
                 step("3", L("Indirizzi e percorsi vengono sostituiti, anche nei dati serializzati."))
                 step("4", L("Scambio istantaneo delle tabelle. Se qualcosa va storto prima, non cambia niente."))

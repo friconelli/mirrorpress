@@ -109,41 +109,84 @@ struct UpdateFooter: View {
 
 struct SiteRow: View {
     @EnvironmentObject var model: AppModel
+    @EnvironmentObject var health: HealthMonitor
     let site: SiteProfile
     var body: some View {
+        let host = URL(string: site.remoteURL)?.host ?? site.host
         HStack(spacing: 10) {
             SiteIcon(site: site, size: 30)
             VStack(alignment: .leading, spacing: 1) {
-                Text(site.name.isEmpty ? L("Senza nome") : site.name).font(Theme.font(.body, .semibold)).lineLimit(1)
-                Text(URL(string: site.remoteURL)?.host ?? site.host)
-                    .font(Theme.font(.caption)).foregroundStyle(.secondary).lineLimit(1)
+                Text(site.name.isEmpty ? L("Senza nome") : site.name).font(Theme.font(.body, .semibold))
+                    .foregroundStyle(.primary).lineLimit(1)
+                if let s = model.existingSession(site.id) {
+                    SiteRowStatus(session: s, site: site, host: host)
+                } else {
+                    SiteStatusText(status: SiteStatus.make(remote: health.report(site.id, .remote), local: health.report(site.id, .local), session: nil), host: host)
+                }
             }
-            Spacer(minLength: 4)
-            HealthDot(site: site)
-            if let s = model.existingSession(site.id) { SiteRowStatus(session: s) }
+            Spacer(minLength: 0)
         }
         .padding(.vertical, 3)
+        .help(host)
     }
 }
 
-/// Stato sintetico nella barra laterale: in corso, errori, ponte attivo.
-struct SiteRowStatus: View {
-    @ObservedObject var session: SiteSession
-    var body: some View {
-        if session.busy != nil {
-            ProgressView().controlSize(.mini)
-        } else if session.lastError != nil {
-            Image(systemName: "xmark.octagon.fill").foregroundStyle(Theme.danger).help(session.lastError ?? "")
-        } else if session.analyzedAt != nil {
-            let n = session.files.filter { $0.status != .same }.count + session.tables.filter { $0.status != .same }.count
-            if n > 0 {
-                Text(verbatim: "\(n)").font(Theme.font(size: 10.5, .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 6).padding(.vertical, 1.5).background(Capsule().fill(Theme.amber))
-                    .help(L("Differenze tra locale e server"))
-            } else {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.ok).help(L("Locale e server allineati"))
-            }
+/// Lo stato del sito in una parola: quello che conta di più, uno solo.
+struct SiteStatus {
+    let text: String
+    let color: Color
+    let symbol: String
+
+    @MainActor static func make(remote: HealthReport?, local: HealthReport?, session: SiteSession?) -> SiteStatus? {
+        if let s = session, s.busy != nil { return SiteStatus(text: L("Al lavoro…"), color: .secondary, symbol: "") }
+        if let h = remote, h.level == .error {
+            return SiteStatus(text: L("Sito online con errori"), color: Theme.danger, symbol: "exclamationmark.octagon.fill")
         }
+        if let s = session, s.lastError != nil {
+            return SiteStatus(text: L("Ultima operazione non riuscita"), color: Theme.danger, symbol: "xmark.octagon.fill")
+        }
+        if let h = remote, h.level == .warning {
+            return SiteStatus(text: L("Sito online da controllare"), color: Theme.warn, symbol: "exclamationmark.triangle.fill")
+        }
+        if let h = local, h.level >= .warning {
+            return SiteStatus(text: L("Da controllare in locale"), color: Theme.warn, symbol: "exclamationmark.triangle.fill")
+        }
+        if let h = remote, h.kind == .comingSoon {
+            return SiteStatus(text: L("In costruzione"), color: Theme.local, symbol: "hammer.fill")
+        }
+        if let s = session, s.analyzedAt != nil {
+            let n = s.files.filter { $0.status != .same }.count + s.tables.filter { $0.status != .same }.count
+            return n > 0 ? SiteStatus(text: L("Da allineare"), color: Theme.amber, symbol: "arrow.left.arrow.right")
+                         : SiteStatus(text: L("In pari"), color: Theme.ok, symbol: "checkmark.circle.fill")
+        }
+        return nil
+    }
+}
+
+struct SiteStatusText: View {
+    let status: SiteStatus?
+    let host: String
+    var body: some View {
+        if let st = status {
+            HStack(spacing: 4) {
+                if st.symbol.isEmpty { ProgressView().controlSize(.mini) } else { Image(systemName: st.symbol).font(.system(size: 9.5)) }
+                Text(st.text).lineLimit(1)
+            }
+            .font(Theme.font(.caption, .semibold)).foregroundStyle(st.color)
+        } else {
+            Text(host).font(Theme.font(.caption)).foregroundStyle(.secondary).lineLimit(1)
+        }
+    }
+}
+
+/// Riga di stato che segue la sessione aperta (analisi, operazioni in corso).
+struct SiteRowStatus: View {
+    @EnvironmentObject var health: HealthMonitor
+    @ObservedObject var session: SiteSession
+    let site: SiteProfile
+    let host: String
+    var body: some View {
+        SiteStatusText(status: SiteStatus.make(remote: health.report(site.id, .remote), local: health.report(site.id, .local), session: session), host: host)
     }
 }
 

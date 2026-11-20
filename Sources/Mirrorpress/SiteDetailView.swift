@@ -2,32 +2,37 @@ import SwiftUI
 import AppKit
 
 enum DetailTab: String, CaseIterable, Identifiable {
-    case sync, overview, database, backups, log
+    case sync, overview, history
     var id: String { rawValue }
     var label: LocalizedStringKey {
         switch self {
         case .sync: return "Sincronizza"
         case .overview: return "Controlli"
-        case .database: return "Database"
-        case .backups: return "Backup"
-        case .log: return "Log"
+        case .history: return "Storico"
         }
     }
     var symbol: String {
         switch self {
         case .sync: return "arrow.up.arrow.down"
         case .overview: return "stethoscope"
-        case .database: return "cylinder.split.1x2"
-        case .backups: return "clock.arrow.circlepath"
-        case .log: return "list.bullet.rectangle"
+        case .history: return "clock.arrow.circlepath"
         }
     }
+}
+
+/// Dentro «Storico»: i backup o il registro delle operazioni.
+enum HistoryPage: String, CaseIterable, Identifiable {
+    case backups, log
+    var id: String { rawValue }
+    var label: LocalizedStringKey { self == .backups ? "Backup" : "Registro" }
 }
 
 struct SiteDetailView: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject var session: SiteSession
     @State private var tab: DetailTab = .sync
+    @State private var showTables = false
+    @State private var history: HistoryPage = .backups
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,7 +45,7 @@ struct SiteDetailView: View {
             if let file = session.manualBridgeFile { ManualBridgeBanner(session: session, file: file) }
             if let err = session.lastError, session.busy == nil, session.manualBridgeFile == nil {
                 let last = session.log.last { $0.kind == .error }
-                ErrorBanner(text: err, hint: last?.hint, showLog: tab == .log ? nil : { tab = .log }) { session.lastError = nil }
+                ErrorBanner(text: err, hint: last?.hint, showLog: tab == .history && history == .log ? nil : { tab = .history; history = .log }) { session.lastError = nil }
             }
             TabStrip(tab: $tab, session: session)
                 .padding(.horizontal, 20).padding(.top, 6).padding(.bottom, 4)
@@ -48,11 +53,28 @@ struct SiteDetailView: View {
 
             Group {
                 switch tab {
-                case .sync: SyncView(session: session) { tab = .database }
+                case .sync:
+                    if showTables {
+                        VStack(spacing: 0) {
+                            SubPageBar(title: L("Tabelle del database, una per una")) { showTables = false }
+                            DatabaseView(session: session)
+                        }
+                    } else {
+                        SyncView(session: session) { showTables = true }
+                    }
                 case .overview: OverviewView(session: session)
-                case .database: DatabaseView(session: session)
-                case .backups: BackupsView(session: session)
-                case .log: LogView(session: session)
+                case .history:
+                    VStack(spacing: 0) {
+                        Picker("", selection: $history) {
+                            ForEach(HistoryPage.allCases) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented).labelsHidden().frame(width: 240)
+                        .padding(.top, 12).padding(.bottom, 4)
+                        switch history {
+                        case .backups: BackupsView(session: session)
+                        case .log: LogView(session: session)
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -72,7 +94,14 @@ struct SiteDetailView: View {
                 }
             }
             if let i = CommandLine.arguments.firstIndex(of: "--tab"), i + 1 < CommandLine.arguments.count,
-               let t = DetailTab(rawValue: CommandLine.arguments[i + 1]) { tab = t }
+               case let raw = CommandLine.arguments[i + 1] {
+                switch raw {
+                case "database": tab = .sync; showTables = true
+                case "backups": tab = .history; history = .backups
+                case "log": tab = .history; history = .log
+                default: if let t = DetailTab(rawValue: raw) { tab = t }
+                }
+            }
         }
     }
 
@@ -199,29 +228,21 @@ struct ErrorBanner: View {
     }
 }
 
-/// Schede del sito con contatori: quante differenze ci sono, senza doverle aprire.
+/// Schede del sito, con un pallino rosso solo dove c'è un errore.
 struct TabStrip: View {
     @Binding var tab: DetailTab
     @ObservedObject var session: SiteSession
     @Namespace private var ns
 
-    private func count(_ t: DetailTab) -> (Int, Color)? {
-        guard session.analyzedAt != nil || t == .log else { return nil }
+    /// Un pallino solo dove c'è qualcosa da guardare: niente numeri.
+    private func dot(_ t: DetailTab) -> Color? {
         switch t {
         case .overview:
-            let n = session.issues.count + session.codeFindings.filter { $0.severity == .error }.count
-            let worst = session.issues.contains { $0.severity == .error } || session.codeFindings.contains { $0.severity == .error } ? Theme.danger : Theme.warn
-            return n > 0 ? (n, worst) : nil
-        case .sync:
-            let n = session.files.filter { $0.status != .same }.count + session.tables.filter { $0.status != .same }.count
-            return n > 0 ? (n, Theme.amber) : nil
-        case .database:
-            let n = session.tables.filter { $0.status != .same }.count
-            return n > 0 ? (n, Theme.amber) : nil
-        case .backups: return nil
-        case .log:
-            let n = session.log.filter { $0.kind == .error }.count
-            return n > 0 ? (n, Theme.danger) : nil
+            guard session.analyzedAt != nil else { return nil }
+            if session.issues.contains(where: { $0.severity == .error }) || session.codeFindings.contains(where: { $0.severity == .error }) { return Theme.danger }
+            return nil
+        case .sync: return nil
+        case .history: return session.lastError != nil ? Theme.danger : nil
         }
     }
 
@@ -235,12 +256,7 @@ struct TabStrip: View {
                     HStack(spacing: 6) {
                         Image(systemName: t.symbol).font(.system(size: 12, weight: .semibold))
                         Text(t.label).font(Theme.font(.callout, selected ? .bold : .medium))
-                        if let (n, c) = count(t) {
-                            Text(verbatim: n > 999 ? "999+" : "\(n)")
-                                .font(Theme.font(size: 10.5, .bold)).foregroundStyle(.white)
-                                .padding(.horizontal, 6).padding(.vertical, 1.5)
-                                .background(Capsule().fill(c))
-                        }
+                        if let c = dot(t) { Circle().fill(c).frame(width: 7, height: 7) }
                     }
                     .foregroundStyle(selected ? Color.primary : Color.secondary)
                     .padding(.horizontal, 12).padding(.vertical, 7)
@@ -554,13 +570,45 @@ struct EndpointLink: View {
         if let target {
             Button { NSWorkspace.shared.open(target) } label: { label }
                 .buttonStyle(.plain)
-                .onHover { h in
-                    hovering = h
-                    if h { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                }
+                .onHover { hovering = $0 }
+                .linkCursor()
                 .help(target.isFileURL ? L("Mostra la cartella nel Finder") : L("Apri %@ nel browser", target.absoluteString))
         } else {
             label
         }
+    }
+}
+
+/// Cursore a manina sui link (affidabile anche quando SwiftUI ridisegna la vista).
+extension View {
+    @ViewBuilder func linkCursor() -> some View {
+        if #available(macOS 15.0, *) {
+            self.pointerStyle(.link)
+        } else {
+            self.overlay(CursorRectView().allowsHitTesting(false))
+        }
+    }
+}
+
+private struct CursorRectView: NSViewRepresentable {
+    final class V: NSView {
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+    }
+    func makeNSView(context: Context) -> NSView { V() }
+    func updateNSView(_ v: NSView, context: Context) { v.window?.invalidateCursorRects(for: v) }
+}
+
+/// Barra per tornare indietro da una sotto-pagina.
+struct SubPageBar: View {
+    let title: String
+    let back: () -> Void
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: back) { Label("Sincronizza", systemImage: "chevron.left") }.buttonStyle(ChipButtonStyle(color: Theme.ink))
+            Text(title).font(Theme.font(.headline, .bold))
+            Spacer()
+        }
+        .padding(.horizontal, 20).padding(.vertical, 10)
+        Divider().opacity(0.5)
     }
 }

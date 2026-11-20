@@ -20,27 +20,13 @@ extension HealthReport.Level {
     }
 }
 
-/// Pallino nella barra laterale: il sito online ha un problema? (anche senza aprire il sito)
-struct HealthDot: View {
-    @EnvironmentObject var health: HealthMonitor
-    let site: SiteProfile
-    var body: some View {
-        if let r = health.worst(site.id), r.level >= .notice {
-            let side = r.side == .remote ? L("Server") : L("Locale")
-            Image(systemName: r.level.symbol)
-                .foregroundStyle(r.level.color)
-                .font(.system(size: 12))
-                .help(side + ": " + r.title)
-        }
-    }
-}
-
 /// Riquadro in cima al sito: cosa non va per i visitatori, perché e come risolvere.
 struct HealthBanner: View {
     @EnvironmentObject var health: HealthMonitor
     @EnvironmentObject var model: AppModel
     @ObservedObject var session: SiteSession
     @State private var expanded: [Side: Bool] = [:]
+    @State private var contentHeight: [Side: CGFloat] = [:]
 
     var body: some View {
         let reports = [Side.remote, .local].compactMap { health.report(session.site.id, $0) }
@@ -55,7 +41,7 @@ struct HealthBanner: View {
         }
     }
 
-    private func isExpanded(_ r: HealthReport) -> Bool { expanded[r.side] ?? (r.level >= .warning || session.diagnosis[r.side] != nil) }
+    private func isExpanded(_ r: HealthReport) -> Bool { expanded[r.side] ?? (session.diagnosis[r.side] != nil) }
 
     @ViewBuilder private func block(_ r: HealthReport) -> some View {
         let open = isExpanded(r)
@@ -68,27 +54,36 @@ struct HealthBanner: View {
                     Text(r.title).font(Theme.font(.callout, .semibold)).textSelection(.enabled)
                 }
                 Spacer(minLength: 8)
-                let checkedAt = r.checkedAt.formatted(date: .omitted, time: .shortened)
-                Text("controllato alle \(checkedAt)").font(Theme.font(.caption)).foregroundStyle(.tertiary)
+                Button { expanded[r.side] = !open } label: {
+                    Label(open ? L("Chiudi") : L("Cosa fare"), systemImage: open ? "chevron.up" : "chevron.down")
+                }
+                .buttonStyle(ChipButtonStyle(color: r.level.color))
                 if health.checking.contains(session.site.id) {
-                    ProgressView().controlSize(.small)
+                    ProgressView().controlSize(.small).frame(width: 28)
                 } else {
-                    Button { Task { await health.check(session.site) } } label: { Label("Ricontrolla", systemImage: "arrow.clockwise") }
+                    let checkedAt = r.checkedAt.formatted(date: .omitted, time: .shortened)
+                    Button { Task { await health.check(session.site) } } label: { Image(systemName: "arrow.clockwise") }
                         .buttonStyle(ChipButtonStyle(color: r.level.color))
+                        .help(L("Ricontrolla (ultimo controllo alle %@)", checkedAt))
                 }
                 if let u = URL(string: r.url) {
                     Button { NSWorkspace.shared.open(u) } label: { Image(systemName: "safari") }
                         .buttonStyle(ChipButtonStyle(color: r.level.color)).help("Apri nel browser")
                 }
-                Button { expanded[r.side] = !open } label: { Image(systemName: open ? "chevron.up" : "chevron.down") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
             }
+            .contentShape(Rectangle())
+            .onTapGesture { expanded[r.side] = !open }
             if open {
-                ScrollView { VStack(alignment: .leading, spacing: 8) { details(r) }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 8) }
-                    .frame(maxHeight: 330)
+                // Alto quanto il contenuto, al massimo 330: la ScrollView da sola si prenderebbe tutto lo spazio libero.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) { details(r) }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 8)
+                        .background(GeometryReader { g in Color.clear.preference(key: HeightKey.self, value: g.size.height) })
+                }
+                .onPreferenceChange(HeightKey.self) { contentHeight[r.side] = $0 }
+                .frame(height: min(contentHeight[r.side] ?? 120, 330))
             }
         }
-        .padding(.horizontal, 20).padding(.vertical, 10)
+        .padding(.horizontal, 20).padding(.vertical, open ? 10 : 7)
         .background(r.level.color.opacity(r.level >= .warning ? 0.09 : 0.06))
     }
 
@@ -206,4 +201,9 @@ struct DiagnosisCard: View {
             Text("La cartella viene rinominata con .off-mirrorpress: niente viene cancellato e si può riattivare da qui. Le impostazioni del plugin restano nel database.")
         }
     }
+}
+
+private struct HeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }

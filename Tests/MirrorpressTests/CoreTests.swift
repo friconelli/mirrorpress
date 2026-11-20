@@ -292,6 +292,18 @@ final class HealthTests: XCTestCase {
         XCTAssertEqual(SiteHealth.classify(snap(200, "<html><body><h1>Villa</h1><p>Suite tra gli ulivi ad Assisi</p></body></html>"), url: "u", side: .remote).level, .ok)
     }
 
+    func testNotFound() {
+        let wp404 = #"<html><head><title>404</title><link href="/wtevent/wp-content/themes/t/style.css"></head><body>Pagina non trovata</body></html>"#
+        let localWP = SiteHealth.classify(snap(404, wp404), url: "u", side: .local)
+        XCTAssertEqual(localWP.level, .warning)
+        XCTAssertTrue(localWP.title.contains("home"))
+        XCTAssertEqual(SiteHealth.classify(snap(404, wp404), url: "u", side: .remote).level, .error)
+        let localBare = SiteHealth.classify(snap(404, "<h1>Not Found</h1>"), url: "u", side: .local)
+        XCTAssertEqual(localBare.level, .warning)
+        XCTAssertFalse(localBare.steps.joined().contains("hosting"))
+        XCTAssertEqual(SiteHealth.classify(snap(404, "<h1>Not Found</h1>"), url: "u", side: .remote).level, .error)
+    }
+
     func testNetworkErrors() {
         var s = HTTPSnapshot(); s.errorCode = NSURLErrorCannotFindHost
         XCTAssertEqual(SiteHealth.classify(s, url: "u", side: .remote).kind, .dns)

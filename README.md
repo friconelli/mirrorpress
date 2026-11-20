@@ -22,7 +22,7 @@ Non serve per i progetti che si pubblicano con Vercel, Netlify o una pipeline (G
 - **File verso il locale**: ogni file è scritto con nome temporaneo e rinominato; le versioni locali sostituite finiscono in un backup nella cartella dell'app.
 - **Eliminare**: sul server niente viene cancellato, i file vanno in `_da_eliminare`; in locale nel Cestino.
 - **Database**: backup completo del lato di destinazione → import in tabelle temporanee (`trvxxxxxx_…`, il sito continua a funzionare) → cerca/sostituisci di indirizzi e percorsi anche nei dati serializzati (ricalcola le lunghezze) e nel JSON → `RENAME TABLE` atomico. Prefisso tabelle diverso gestito (anche `user_roles` e i permessi in `usermeta`). Collation convertite per MariaDB/MySQL 5.7. Se qualcosa va storto prima dello scambio non cambia niente. Prima di inviare, se il server ha righe che il locale non ha, bisogna confermarlo esplicitamente.
-- **Backup sul server**: nella cartella di lavoro `.mirrorpress-<hash>` *fuori dalla webroot* quando l'hosting lo permette (altrimenti dentro, protetta da `.htaccess`). Mirrorpress non li cancella mai. Si possono scaricare (DB) e ripristinare dalla scheda «Backup».
+- **Backup sul server**: nella cartella di lavoro `.mirrorpress-<hash>` *fuori dalla webroot* quando l'hosting lo permette (altrimenti dentro, protetta da `.htaccess`). Mirrorpress non li cancella mai. Si possono scaricare (DB) e ripristinare da **Storico → Backup**.
 
 Password FTP/SFTP, HTTP e database nel Portachiavi. Le credenziali FTP passano a `curl` in un `.netrc` temporaneo, quella SFTP via `SSH_ASKPASS`: mai sulla riga di comando. Usa solo strumenti di macOS (`curl`, `sftp`) più il PHP di MAMP (o Homebrew; percorso configurabile nelle Impostazioni).
 
@@ -59,15 +59,20 @@ Scheda Controlli → **Codice** → «Controlla il codice» (a parte dall'analis
 
 Le criticità gravi dei file da copiare compaiono anche nella conferma di Push/Pull.
 
+## Interfaccia
+
+- **Barra laterale**: sotto ogni sito una sola parola di stato, la più importante (sito online con errori, ultima operazione non riuscita, da controllare, da allineare, in pari); se non c'è niente da dire, il dominio.
+- **Tre schede**: *Sincronizza* (con le tabelle del database una per una come sotto-pagina), *Controlli*, *Storico* (Backup e Registro). Niente contatori: un pallino rosso solo dove c'è un errore.
+
 ## Salute del sito
 
-All'avvio e ogni 15 minuti Mirrorpress apre la home di ogni sito (online e in locale) come un visitatore, senza bisogno di credenziali FTP. Se qualcosa non va compare un pallino nella barra laterale (e il numero sull'icona nel Dock) e, nel sito, un riquadro che spiega il problema e i passi per risolverlo: errore critico di WordPress, database irraggiungibile, `.maintenance` rimasto, errori PHP a video, pagina bianca, 403/404/500/502/503, redirect infiniti, DNS, certificato scaduto. Un errore viene ricontrollato dopo pochi secondi (errori intermittenti) e si prova anche `wp-login.php` (se il pannello funziona, si può disattivare il plugin da lì). La pagina «in costruzione» di un plugin è segnalata in blu come voluta.
+All'avvio e ogni 15 minuti Mirrorpress apre la home di ogni sito (online e in locale) come un visitatore, senza bisogno di credenziali FTP. Se qualcosa non va lo dice la riga sotto il nome del sito nella barra laterale (e il numero sull'icona nel Dock) e, nel sito, un riquadro chiuso su una riga: «Cosa fare» apre spiegazione e passi per risolvere: errore critico di WordPress, database irraggiungibile, `.maintenance` rimasto, errori PHP a video, pagina bianca, 403/404/500/502/503, redirect infiniti, DNS, certificato scaduto. Un errore viene ricontrollato dopo pochi secondi (errori intermittenti) e si prova anche `wp-login.php` (se il pannello funziona, si può disattivare il plugin da lì). La pagina «in costruzione» di un plugin è segnalata in blu come voluta.
 
 **Diagnosi** (azione `diagnose` del ponte): legge gli ultimi errori fatali dai log PHP (`error_log`, `debug.log`, log di PHP; i log condivisi sono filtrati sulla cartella del sito), controlla `.maintenance` e database e prova a caricare WordPress (`wp-load.php`, senza cron né gestore degli errori di WP) catturando l'errore fatale con file e riga. Da lì individua il plugin/tema colpevole e offre **Disattiva** (rinomina la cartella in `slug.off-mirrorpress`, reversibile con **Riattiva**, azione `toggle_ext`) e **Togli .maintenance** (in `_da_eliminare`).
 
 ## Log e diagnosi
 
-La scheda **Log** registra ogni passo. Ogni errore dice cosa è successo, cosa fare (💡) e ha i **dettagli tecnici** espandibili: operazione, connessione (utente@server:porta, cartella), dialogo FTP col server (password oscurata), indirizzo del ponte, codice HTTP, intestazioni dell'hosting (WAF, cache), inizio della risposta. «Copia log» copia tutto come testo. Prima di installare il ponte l'app controlla che la cartella remota contenga `wp-config.php` e, se non la trova, cerca WordPress nelle cartelle vicine e le suggerisce; dopo il caricamento verifica la dimensione del file (antivirus degli hosting che lo svuotano o lo tolgono). Il ponte, in caso di errore fatale PHP, risponde con un JSON che lo spiega invece di una pagina vuota.
+**Storico → Registro** tiene ogni passo. Ogni errore dice cosa è successo, cosa fare (💡) e ha i **dettagli tecnici** espandibili: operazione, connessione (utente@server:porta, cartella), dialogo FTP col server (password oscurata), indirizzo del ponte, codice HTTP, intestazioni dell'hosting (WAF, cache), inizio della risposta. «Copia log» copia tutto come testo. Prima di installare il ponte l'app controlla che la cartella remota contenga `wp-config.php` e, se non la trova, cerca WordPress nelle cartelle vicine e le suggerisce; dopo il caricamento verifica la dimensione del file (antivirus degli hosting che lo svuotano o lo tolgono). Il ponte, in caso di errore fatale PHP, risponde con un JSON che lo spiega invece di una pagina vuota.
 
 ## Hosting provati
 

@@ -236,6 +236,21 @@ enum SiteHealth {
                         L("Controlla i permessi: cartelle 755, file 644, index.php leggibile."),
                         L("Un firewall dell'hosting (WAF) o un plugin di sicurezza può bloccare il tuo IP: prova da un'altra rete.")])
         }
+        if status == 404 && (r.body.contains("wp-content") || r.body.contains("wp-includes")) {
+            // Risponde WordPress: il sito c'è, è la home che non si trova (lingue, permalink).
+            return rep(local ? .warning : .error, .notFound, L("WordPress non trova la home (HTTP 404)"),
+                       L("Il sito funziona ma la pagina iniziale risulta «non trovata». Succede con i siti in più lingue, dove la home vera è /it/ o /en/, o dopo aver copiato il sito, finché non si risalvano i permalink."),
+                       [L("Apri il sito nel browser e prova una pagina interna, per esempio /it/: se funziona, il problema è solo la home."),
+                        L("Nel pannello di WordPress vai in Impostazioni → Permalink e premi «Salva le modifiche»."),
+                        L("Se il sito è in più lingue, controlla nel plugin delle lingue qual è la lingua principale e come appare nell'indirizzo.")])
+        }
+        if status == 404 && local {
+            return rep(.warning, .notFound, L("Il sito in locale non è a questo indirizzo (HTTP 404)"),
+                       L("MAMP risponde, ma a questo indirizzo non c'è WordPress."),
+                       [L("Premi «Analizza»: Mirrorpress legge l'indirizzo giusto dal database locale."),
+                        L("Oppure scrivi l'indirizzo esatto nel profilo, alla voce «Indirizzo locale»."),
+                        L("In MAMP controlla che la cartella dei documenti sia htdocs (Impostazioni → Server).")])
+        }
         if status == 404 {
             return rep(.error, .notFound, L("Pagina non trovata (HTTP 404) sulla home"), L("Il dominio risponde ma nella cartella non c'è il sito."),
                        [L("Controlla nel pannello dell'hosting che il dominio punti alla cartella dove hai caricato WordPress."),
