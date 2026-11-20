@@ -40,6 +40,7 @@ struct SyncView: View {
                                 .buttonStyle(.link).font(Theme.font(.callout))
                         }
                         .padding(.top, 6)
+                        NeverSyncList(session: session)
                         let groups = byArea
                         if groups.isEmpty {
                             Label("I file sul Mac e sul server sono uguali.", systemImage: "checkmark.seal.fill")
@@ -265,6 +266,7 @@ struct SyncButtonStyle: ButtonStyle {
 
 /// Una riga dell'albero: cartella (apribile) o file, con stato e pulsanti.
 struct SyncRow: View {
+    @EnvironmentObject var model: AppModel
     @ObservedObject var session: SiteSession
     let node: SyncNode
     let area: SyncArea
@@ -333,6 +335,12 @@ struct SyncRow: View {
         }
         if node.isFile, let base = URL(string: session.remoteURL), !session.remoteURL.isEmpty {
             Button("Apri sul server") { NSWorkspace.shared.open(base.appendingPathComponent(path)) }
+        }
+        Divider()
+        Button {
+            if let s = session.neverSync(path) { model.quietSave(s) }
+        } label: {
+            Label(node.isFile ? L("Non sincronizzare questo file") : L("Non sincronizzare questa cartella"), systemImage: "eye.slash")
         }
         let inside = session.files.filter { node.isFile ? $0.path == path : $0.path.hasPrefix(path) }
         let onlyRemote = inside.filter { $0.status == .onlyRemote }.map(\.path)
@@ -548,6 +556,45 @@ struct SyncRulesSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(Theme.font(.headline, .bold))
             content()
+        }
+    }
+}
+
+/// File e cartelle che hai deciso di non sincronizzare, con il modo per riattivarli.
+struct NeverSyncList: View {
+    @EnvironmentObject var model: AppModel
+    @ObservedObject var session: SiteSession
+    var body: some View {
+        let list = session.site.userExcludes
+        if !list.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(L("Non sincronizzati per tua scelta (%d)", list.count), systemImage: "eye.slash")
+                    .font(Theme.font(.caption, .semibold)).foregroundStyle(.secondary)
+                FlowChips(items: list) { pattern in
+                    model.quietSave(session.syncAgain(pattern))
+                }
+            }
+        }
+    }
+}
+
+/// Etichette che vanno a capo, ognuna con la × per toglierla.
+struct FlowChips: View {
+    let items: [String]
+    let remove: (String) -> Void
+    var body: some View {
+        // LazyVGrid adattivo: semplice e compatibile con macOS 13.
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), alignment: .leading)], alignment: .leading, spacing: 6) {
+            ForEach(items, id: \.self) { item in
+                HStack(spacing: 6) {
+                    Text(verbatim: item).font(Theme.mono).lineLimit(1).truncationMode(.middle)
+                    Button { remove(item) } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                        .help(L("Sincronizza di nuovo %@", item))
+                }
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
+            }
         }
     }
 }

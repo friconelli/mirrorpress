@@ -68,6 +68,15 @@ struct SiteProfile: Codable, Identifiable, Hashable {
         ".DS_Store", "._*", "__MACOSX", "Thumbs.db", "desktop.ini", "*.swp",
     ]
 
+    /// Percorsi che hai escluso tu dal confronto (tasto destro → Non sincronizzare): tutto ciò che non è nelle predefinite.
+    var userExcludes: [String] { excludes.filter { !Self.defaultExcludes.contains($0) && !Self.alwaysExcluded.contains($0) } }
+
+    /// Il motivo da scrivere nelle esclusioni per un percorso relativo: ancorato alla radice del sito.
+    static func excludePattern(for path: String) -> String {
+        let rel = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return rel.contains("/") ? rel : "/" + rel
+    }
+
     /// Esclusioni del profilo più quelle fisse.
     var effectiveExcludes: [String] {
         var seen = Set<String>()

@@ -41,6 +41,12 @@ final class AppModel: ObservableObject {
         objectWillChange.send()
     }
 
+    /// Salva il profilo senza cambiare selezione né ricontrollare il sito (esclusioni dal menu contestuale).
+    func quietSave(_ site: SiteProfile) {
+        store.upsert(site)
+        sessions[site.id]?.profileChanged(site)
+    }
+
     func delete(_ site: SiteProfile) async {
         await sessions[site.id]?.removeBridge()
         sessions[site.id] = nil

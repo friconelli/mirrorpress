@@ -426,12 +426,14 @@ function trv_info($req) {
 
 // ---------------------------------------------------------------- file
 
-/** Esclusioni: "nome" vale per qualunque cartella/file con quel nome, "a/b" è ancorato alla root. */
+/** Esclusioni: "nome" vale per qualunque cartella/file con quel nome, "a/b" e "/nome" sono ancorati alla root. */
 function trv_excluded($rel, $name, $patterns) {
     foreach ($patterns as $p) {
         $p = rtrim($p, '/');
         if ($p === '') continue;
         if (strpos($p, '/') !== false) {
+            $p = ltrim($p, '/');
+            if ($p === '') continue;
             if (fnmatch($p, $rel) || strpos($rel, $p . '/') === 0) return true;
         } elseif (fnmatch($p, $name)) {
             return true;

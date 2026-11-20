@@ -204,7 +204,7 @@ extension String {
 
 // MARK: - Esclusioni
 
-/// Stesse regole di trv_excluded() nel ponte: "nome" vale a qualunque livello, "a/b" è ancorato alla root.
+/// Stesse regole di trv_excluded() nel ponte: "nome" vale a qualunque livello, "a/b" e "/nome" sono ancorati alla root.
 struct ExcludeMatcher {
     let patterns: [String]
 
@@ -217,7 +217,9 @@ struct ExcludeMatcher {
     func excludes(_ rel: String, name: String) -> Bool {
         for p in patterns {
             if p.contains("/") {
-                if fnmatch(p, rel, 0) == 0 || rel.hasPrefix(p + "/") { return true }
+                let a = p.hasPrefix("/") ? String(p.dropFirst()) : p
+                if a.isEmpty { continue }
+                if fnmatch(a, rel, 0) == 0 || rel.hasPrefix(a + "/") { return true }
             } else if fnmatch(p, name, 0) == 0 {
                 return true
             }

@@ -69,6 +69,30 @@ final class SiteSession: ObservableObject {
         if connectionChanged { remote = nil; bridgeInstalled = false }
     }
 
+    // MARK: - Non sincronizzare
+
+    /// Esclude dal confronto un file o una cartella: sparisce subito dall'elenco e resta escluso nelle prossime analisi.
+    /// Restituisce il profilo aggiornato da salvare.
+    func neverSync(_ path: String) -> SiteProfile? {
+        let pattern = SiteProfile.excludePattern(for: path)
+        guard !site.excludes.contains(pattern) else { return nil }
+        var s = site
+        s.excludes.append(pattern)
+        let m = ExcludeMatcher([pattern])
+        let before = files.count
+        files.removeAll { m.excludes($0.path, name: ($0.path as NSString).lastPathComponent) }
+        note(L("Non sincronizzo più %@ (%d file tolti dall'elenco). Per riattivarlo: Sincronizza → File, oppure il profilo del sito.", pattern, before - files.count))
+        return s
+    }
+
+    /// Toglie un'esclusione aggiunta da te: i file tornano nell'elenco alla prossima analisi.
+    func syncAgain(_ pattern: String) -> SiteProfile {
+        var s = site
+        s.excludes.removeAll { $0 == pattern }
+        note(L("%@ torna nel confronto: premi «Analizza» per rivederlo.", pattern))
+        return s
+    }
+
     // MARK: - Registro
 
     func note(_ text: String, _ kind: LogLine.Kind = .info, hint: String? = nil, detail: String? = nil) {

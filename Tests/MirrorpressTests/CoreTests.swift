@@ -304,6 +304,20 @@ final class HealthTests: XCTestCase {
         XCTAssertEqual(site.effectiveExcludes.count, Set(site.effectiveExcludes).count)
     }
 
+    func testNeverSyncPatterns() {
+        XCTAssertEqual(SiteProfile.excludePattern(for: "note.txt"), "/note.txt")
+        XCTAssertEqual(SiteProfile.excludePattern(for: "wp-content/themes/t/dev/"), "wp-content/themes/t/dev")
+        let root = ExcludeMatcher(["/note.txt"])
+        XCTAssertTrue(root.excludes("note.txt", name: "note.txt"))
+        XCTAssertFalse(root.excludes("wp-content/note.txt", name: "note.txt"))
+        let dir = ExcludeMatcher(["wp-content/themes/t/dev"])
+        XCTAssertTrue(dir.excludes("wp-content/themes/t/dev/a.js", name: "a.js"))
+        XCTAssertFalse(dir.excludes("wp-content/themes/t/developer.php", name: "developer.php"))
+        var site = SiteProfile()
+        site.excludes = SiteProfile.defaultExcludes + ["node_modules", "/note.txt"]
+        XCTAssertEqual(site.userExcludes, ["/note.txt"])
+    }
+
     func testNotFound() {
         let wp404 = #"<html><head><title>404</title><link href="/wtevent/wp-content/themes/t/style.css"></head><body>Pagina non trovata</body></html>"#
         let localWP = SiteHealth.classify(snap(404, wp404), url: "u", side: .local)

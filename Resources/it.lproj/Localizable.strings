@@ -998,3 +998,9 @@
 "Ultima operazione non riuscita" = "Ultima operazione non riuscita";
 "WordPress non trova la home (HTTP 404)" = "WordPress non trova la home (HTTP 404)";
 "Esclusi sempre, in ogni sito: %@." = "Esclusi sempre, in ogni sito: %@.";
+"%@ torna nel confronto: premi «Analizza» per rivederlo." = "%@ torna nel confronto: premi «Analizza» per rivederlo.";
+"Non sincronizzare questa cartella" = "Non sincronizzare questa cartella";
+"Non sincronizzare questo file" = "Non sincronizzare questo file";
+"Non sincronizzati per tua scelta (%d)" = "Non sincronizzati per tua scelta (%d)";
+"Non sincronizzo più %@ (%d file tolti dall'elenco). Per riattivarlo: Sincronizza → File, oppure il profilo del sito." = "Non sincronizzo più %@ (%d file tolti dall'elenco). Per riattivarlo: Sincronizza → File, oppure il profilo del sito.";
+"Sincronizza di nuovo %@" = "Sincronizza di nuovo %@";
